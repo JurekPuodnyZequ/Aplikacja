@@ -63,7 +63,7 @@ client.on('interactionCreate', async interaction => {
     const embed = new EmbedBuilder()
       .setTitle('Weryfikacja')
       .setDescription('Aby uzyskać dostęp do serwera, kliknij przycisk poniżej i autoryzuj aplikację przez Discord.')
-      .setColor(0x5865F2);
+      .setColor(0x9C27B0);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
