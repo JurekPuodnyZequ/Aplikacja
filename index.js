@@ -62,16 +62,19 @@ client.on('interactionCreate', async interaction => {
 if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
 
   const embed = new EmbedBuilder()
-    .setColor("#6a00ff")
-    .addFields({
-      name: "🔐 SS | Shop × Weryfikacja",
-       value: "────────────────────"
-    })
-    .setDescription(
-      ">>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n" +
-      "Kliknij przycisk poniżej i rozwiąż proste działanie matematyczne.\n\n"
-    )
-    .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
+  .setColor("#6a00ff")
+
+  .setAuthor({
+    name: "SS | Shop × Weryfikacja",
+    iconURL: "https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png"
+  })
+  .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+  .setDescription(
+    ">>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n" +
+    "Kliknij przycisk poniżej i rozwiąż proste działanie matematyczne.\n\n"
+  )
+
+  .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
     
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
