@@ -61,8 +61,8 @@ client.on('interactionCreate', async interaction => {
   // Slash command /setup-verify
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
     const embed = new EmbedBuilder()
-      .setTitle('Weryfikacja')
-      .setDescription('Aby uzyskać dostęp do serwera, kliknij przycisk poniżej i autoryzuj aplikację przez Discord.')
+      .setTitle('🔐 SS | Shop × Weryfikacja')
+      .setDescription('Aby uzyskać dostęp do serwera, Kliknij przycisk poniżej i Zautoryzuj bota!')
       .setColor(0x9C27B0)
       .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png?ex=69ee9a9b&is=69ed491b&hm=0a4c961aeca25e57f2b4f1c18d7b7e67eafb29da147bf68eb4ec22a946a1144d&');
 
