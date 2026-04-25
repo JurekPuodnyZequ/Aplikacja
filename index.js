@@ -64,17 +64,15 @@ if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verif
   const embed = new EmbedBuilder()
   .setColor("#6a00ff")
 
-// --- ZAMIEŃ SWÓJ STARY KOD NA TEN PONIŻEJ ---
-const embed = new EmbedBuilder()
-  .setColor("#6a00ff")
   .setAuthor({
-    name: "SS | Shop × Weryfikacja",
-    iconURL: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663422956152/VEJDukekckeYVATM.png"
-  } )
-    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
-     .setDescription(">>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n" +
-    "Kliknij przycisk poniżej i się zweryfikuj!.\n\n");
-// --- KONIEC ZMIANY ---
+    name: "💜 SS | Shop 💜 × Weryfikacja",
+    iconURL: "https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png"
+  })
+  .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+  .setDescription(
+    ">>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n" +
+    "Kliknij przycisk poniżej i się zweryfikuj!.\n\n"
+  )
 
   .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
     
