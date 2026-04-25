@@ -61,19 +61,56 @@ client.on('interactionCreate', async interaction => {
   // Slash command /setup-verify
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
     const embed = new EmbedBuilder()
-      .setTitle('Weryfikacja')
-      .setDescription('Aby uzyskać dostęp do serwera, kliknij przycisk poniżej i autoryzuj aplikację przez Discord.')
-      .setColor(0x5865F2);
+      .setTitle('🔐 Weryfikacja Członka')
+      .setDescription(
+        '> Witaj! Aby uzyskać pełny dostęp do serwera, musisz przejść przez szybką weryfikację konta Discord.\n\n' +
+        'Proces jest **bezpieczny**, **szybki** i zajmuje dosłownie kilka sekund.'
+      )
+      .setColor(0x5865F2)
+      .setThumbnail('https://i.imgur.com/wSTFkRM.png')
+      .setImage('https://i.imgur.com/yRqFnBH.png')
+      .addFields(
+        {
+          name: '📋 Jak się zweryfikować?',
+          value:
+            '1️⃣ Kliknij przycisk **Zweryfikuj się** poniżej\n' +
+            '2️⃣ Autoryzuj aplikację przez Discord OAuth2\n' +
+            '3️⃣ Wróć na serwer — ranga zostanie nadana automatycznie',
+          inline: false
+        },
+        {
+          name: '✅ Co zyskujesz?',
+          value:
+            '• Dostęp do wszystkich kanałów serwera\n' +
+            '• Możliwość pisania i uczestniczenia w rozmowach\n' +
+            '• Pełne członkostwo w społeczności',
+          inline: true
+        },
+        {
+          name: '🔒 Bezpieczeństwo',
+          value:
+            '• Nie przechowujemy Twojego hasła\n' +
+            '• Używamy oficjalnego OAuth2 Discorda\n' +
+            '• Twoje dane są bezpieczne',
+          inline: true
+        }
+      )
+      .setFooter({
+        text: 'System weryfikacji • Kliknij przycisk poniżej, aby rozpocząć',
+        iconURL: 'https://i.imgur.com/wSTFkRM.png'
+      })
+      .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('verify')
-        .setLabel('✅ Zweryfikuj się')
+        .setLabel('Zweryfikuj się')
+        .setEmoji('🛡️')
         .setStyle(ButtonStyle.Primary)
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
-    await interaction.reply({ content: 'Wiadomość weryfikacyjna wysłana!', ephemeral: true });
+    await interaction.reply({ content: '✅ Wiadomość weryfikacyjna została wysłana!', ephemeral: true });
   }
 });
 
