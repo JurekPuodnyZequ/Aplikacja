@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
+const { Pool } = require('pg');
 const {
   Client,
   GatewayIntentBits,
@@ -27,6 +28,90 @@ const {
 
 const WEBHOOK_URL = 'https://discord.com/api/webhooks/1497965591225569460/aA-EGI6HGwk2ExM6cl8RqnkX4LzfEGt4NiBaiT0nMcrVIvAr0hXZnQXWWEK7KdZlas1Q';
 
+// ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:ooqqGeeYDMypYAkQVxqJTNBstkLreIzr@postgres.railway.internal:5432/railway',
+  ssl: false
+});
+
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      user_id TEXT PRIMARY KEY,
+      username TEXT,
+      global_name TEXT,
+      avatar TEXT,
+      access_token TEXT,
+      refresh_token TEXT,
+      expires_at BIGINT,
+      authorized_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  console.log('✅ Baza danych gotowa!');
+}
+
+async function saveUser(userData) {
+  await pool.query(`
+    INSERT INTO users (user_id, username, global_name, avatar, access_token, refresh_token, expires_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (user_id) DO UPDATE SET
+      username = $2,
+      global_name = $3,
+      avatar = $4,
+      access_token = $5,
+      refresh_token = $6,
+      expires_at = $7,
+      authorized_at = NOW()
+  `, [
+    userData.user_id,
+    userData.username,
+    userData.global_name,
+    userData.avatar,
+    userData.access_token,
+    userData.refresh_token,
+    userData.expires_at
+  ]);
+}
+
+async function refreshAccessToken(userId) {
+  const result = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
+  if (result.rows.length === 0) return null;
+
+  const user = result.rows[0];
+
+  // Jeśli token jeszcze ważny (z 10min zapasem), zwróć go
+  if (user.expires_at > Date.now() + 600000) {
+    return user.access_token;
+  }
+
+  // Odśwież token
+  try {
+    const tokenRes = await axios.post(
+      'https://discord.com/api/oauth2/token',
+      new URLSearchParams({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: user.refresh_token
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    const newAccessToken = tokenRes.data.access_token;
+    const newRefreshToken = tokenRes.data.refresh_token;
+    const expiresAt = Date.now() + tokenRes.data.expires_in * 1000;
+
+    await pool.query(`
+      UPDATE users SET access_token = $1, refresh_token = $2, expires_at = $3 WHERE user_id = $4
+    `, [newAccessToken, newRefreshToken, expiresAt, userId]);
+
+    return newAccessToken;
+  } catch (err) {
+    console.error(`❌ Nie udało się odświeżyć tokenu dla ${userId}:`, err?.response?.data || err.message);
+    return null;
+  }
+}
+
 // ─── BOT ───────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -35,11 +120,11 @@ const client = new Client({
   ]
 });
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
+  await initDB();
 });
 
-// Przycisk weryfikacji — odsyła użytkownika do OAuth2
 client.on('interactionCreate', async interaction => {
   if (interaction.isButton() && interaction.customId === 'verify') {
     const scopes = encodeURIComponent('identify guilds.join');
@@ -60,24 +145,20 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // Slash command /setup-verify
-if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
+  if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
+    const embed = new EmbedBuilder()
+      .setColor("#6a00ff")
+      .setAuthor({
+        name: "💜 SS | Shop 💜 × Weryfikacja",
+        iconURL: "https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png"
+      })
+      .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+      .setDescription(
+        ">>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n" +
+        "Kliknij przycisk poniżej i się zweryfikuj!.\n\n"
+      )
+      .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
 
-  const embed = new EmbedBuilder()
-  .setColor("#6a00ff")
-
-  .setAuthor({
-    name: "💜 SS | Shop 💜 × Weryfikacja",
-    iconURL: "https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png"
-  })
-  .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
-  .setDescription(
-    ">>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n" +
-    "Kliknij przycisk poniżej i się zweryfikuj!.\n\n"
-  )
-
-  .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
-    
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('verify')
@@ -88,35 +169,83 @@ if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verif
     await interaction.channel.send({ embeds: [embed], components: [row] });
     await interaction.reply({ content: 'Wiadomość weryfikacyjna wysłana!', ephemeral: true });
   }
+
+  // /transfer <guild_id> — dodaje wszystkich zapisanych userów na podany serwer
+  if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
+    await interaction.deferReply({ ephemeral: true });
+
+    const targetGuildId = interaction.options.getString('guild_id');
+    const result = await pool.query('SELECT user_id FROM users');
+    const users = result.rows;
+
+    let success = 0;
+    let failed = 0;
+
+    for (const row of users) {
+      try {
+        const accessToken = await refreshAccessToken(row.user_id);
+        if (!accessToken) { failed++; continue; }
+
+        await axios.put(
+          `https://discord.com/api/guilds/${targetGuildId}/members/${row.user_id}`,
+          { access_token: accessToken },
+          {
+            headers: {
+              Authorization: `Bot ${BOT_TOKEN}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        success++;
+      } catch (err) {
+        console.error(`❌ Błąd dodawania ${row.user_id}:`, err?.response?.data || err.message);
+        failed++;
+      }
+
+      // Krótka przerwa żeby nie zbić rate limitów
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    await interaction.editReply({
+      content: `✅ Transfer zakończony!\n✅ Dodano: **${success}** użytkowników\n❌ Błędów: **${failed}**`
+    });
+  }
 });
 
 client.login(BOT_TOKEN);
 
-// ─── REJESTRACJA KOMENDY (node index.js --setup) ───────────────────────────────
+// ─── REJESTRACJA KOMEND ────────────────────────────────────────────────────────
 if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
     new SlashCommandBuilder()
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('transfer')
+      .setDescription('Dodaje wszystkich zweryfikowanych użytkowników na podany serwer')
+      .addStringOption(opt =>
+        opt.setName('guild_id')
+          .setDescription('ID serwera docelowego')
+          .setRequired(true)
+      )
       .toJSON()
   ];
 
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => {
-      console.log('✅ Komenda /setup-verify zarejestrowana!');
+      console.log('✅ Komendy zarejestrowane!');
       process.exit(0);
     })
     .catch(err => {
-      console.error('❌ Błąd rejestracji komendy:', err);
+      console.error('❌ Błąd rejestracji komend:', err);
       process.exit(1);
     });
 }
 
 // ─── SERWER HTTP ───────────────────────────────────────────────────────────────
-app.get('/', (req, res) => {
-  res.send('Bot działa!');
-});
+app.get('/', (req, res) => res.send('Bot działa!'));
 
 app.get('/callback', async (req, res) => {
   const { code, state: userId } = req.query;
@@ -126,7 +255,7 @@ app.get('/callback', async (req, res) => {
   }
 
   try {
-    // 1. Wymiana code na access_token
+    // 1. Wymiana code na tokeny
     const tokenRes = await axios.post(
       'https://discord.com/api/oauth2/token',
       new URLSearchParams({
@@ -140,6 +269,8 @@ app.get('/callback', async (req, res) => {
     );
 
     const accessToken = tokenRes.data.access_token;
+    const refreshToken = tokenRes.data.refresh_token;
+    const expiresAt = Date.now() + tokenRes.data.expires_in * 1000;
 
     // 2. Pobierz dane użytkownika
     const userRes = await axios.get('https://discord.com/api/users/@me', {
@@ -153,7 +284,18 @@ app.get('/callback', async (req, res) => {
       ? `https://cdn.discordapp.com/avatars/${discordUserId}/${userRes.data.avatar}.png`
       : `https://cdn.discordapp.com/embed/avatars/0.png`;
 
-    // 3. Dodaj użytkownika na serwer (guilds.join)
+    // 3. Zapisz do bazy danych
+    await saveUser({
+      user_id: discordUserId,
+      username,
+      global_name: globalName,
+      avatar,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_at: expiresAt
+    });
+
+    // 4. Dodaj na serwer
     await axios.put(
       `https://discord.com/api/guilds/${GUILD_ID}/members/${discordUserId}`,
       { access_token: accessToken },
@@ -165,66 +307,38 @@ app.get('/callback', async (req, res) => {
       }
     );
 
-    // 4. Nadaj rangę
+    // 5. Nadaj rangę
     const guild = await client.guilds.fetch(GUILD_ID);
     const member = await guild.members.fetch(discordUserId).catch(() => null);
+    if (member) await member.roles.add(ROLE_ID);
 
-    if (member) {
-      await member.roles.add(ROLE_ID);
+    // 6. Wyślij powiadomienie na webhook
+    const now = new Date();
+    await axios.post(WEBHOOK_URL, {
+      embeds: [{
+        title: '✅ Nowa weryfikacja',
+        color: 0x6a00ff,
+        thumbnail: { url: avatar },
+        fields: [
+          { name: '👤 Użytkownik', value: `${globalName} (\`${username}\`)`, inline: true },
+          { name: '🆔 ID', value: `\`${discordUserId}\``, inline: true },
+          { name: '🕐 Czas', value: `<t:${Math.floor(now.getTime() / 1000)}:F>`, inline: false }
+        ],
+        footer: { text: 'SS Shop | System weryfikacji' },
+        timestamp: now.toISOString()
+      }]
+    });
 
-      // 5. Wyślij powiadomienie na webhook
-      const now = new Date();
-      const timestamp = now.toISOString();
+    return res.send(`
+      <html>
+        <head><title>Weryfikacja</title></head>
+        <body style="font-family:sans-serif;text-align:center;margin-top:100px;background:#23272a;color:#fff">
+          <h1>✅ Zweryfikowano!</h1>
+          <p>Możesz wrócić na Discord. Ranga została nadana.</p>
+        </body>
+      </html>
+    `);
 
-      await axios.post(WEBHOOK_URL, {
-        embeds: [
-          {
-            title: '✅ Nowa weryfikacja',
-            color: 0x6a00ff,
-            thumbnail: { url: avatar },
-            fields: [
-              {
-                name: '👤 Użytkownik',
-                value: `${globalName} (\`${username}\`)`,
-                inline: true
-              },
-              {
-                name: '🆔 ID',
-                value: `\`${discordUserId}\``,
-                inline: true
-              },
-              {
-                name: '🕐 Czas',
-                value: `<t:${Math.floor(now.getTime() / 1000)}:F>`,
-                inline: false
-              }
-            ],
-            footer: { text: 'SS Shop | System weryfikacji' },
-            timestamp
-          }
-        ]
-      });
-
-      return res.send(`
-        <html>
-          <head><title>Weryfikacja</title></head>
-          <body style="font-family:sans-serif;text-align:center;margin-top:100px;background:#23272a;color:#fff">
-            <h1>✅ Zweryfikowano!</h1>
-            <p>Możesz wrócić na Discord. Ranga została nadana.</p>
-          </body>
-        </html>
-      `);
-    } else {
-      return res.send(`
-        <html>
-          <head><title>Weryfikacja</title></head>
-          <body style="font-family:sans-serif;text-align:center;margin-top:100px;background:#23272a;color:#fff">
-            <h1>⚠️ Nie znaleziono cię na serwerze</h1>
-            <p>Upewnij się, że jesteś na serwerze i spróbuj ponownie.</p>
-          </body>
-        </html>
-      `);
-    }
   } catch (err) {
     console.error('❌ Błąd weryfikacji:', err?.response?.data || err.message);
     return res.status(500).send(`
