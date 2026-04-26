@@ -27,7 +27,6 @@ const {
   PORT = 3000
 } = process.env;
 
-const WEBHOOK_URL = 'https://discord.com/api/webhooks/1497965591225569460/aA-EGI6HGwk2ExM6cl8RqnkX4LzfEGt4NiBaiT0nMcrVIvAr0hXZnQXWWEK7KdZlas1Q';
 const LOG_CHANNEL_ID = '1495432512506429465';
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
@@ -134,25 +133,20 @@ client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.guild) return;
 
-  // Pomiń adminów i właściciela serwera
   if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
   if (message.guild.ownerId === message.author.id) return;
 
   if (DISCORD_LINK_REGEX.test(message.content)) {
     try {
-      // Usuń wiadomość
       await message.delete();
 
-      // Wyślij PV
       await message.author.send(
         '🚫 **Nie wysyłaj linków do żadnego discorda!**\nZa karę dostajesz przerwę na **7 dni**. Przemyśl sobie co zrobiłeś.'
       ).catch(() => {});
 
-      // Daj timeout na 7 dni
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
       await message.member.timeout(sevenDays, 'Wysłanie linku do Discorda');
 
-      // Wyślij log na kanał
       const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
       if (logChannel) {
         const embed = new EmbedBuilder()
@@ -398,21 +392,24 @@ app.get('/callback', async (req, res) => {
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (member) await member.roles.add(ROLE_ID);
 
+    // Wyślij log na kanał
     const now = new Date();
-    await axios.post(WEBHOOK_URL, {
-      embeds: [{
-        title: '✅ Nowa weryfikacja',
-        color: 0x6a00ff,
-        thumbnail: { url: avatar },
-        fields: [
+    const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
+    if (logChannel) {
+      const logEmbed = new EmbedBuilder()
+        .setColor(0x6a00ff)
+        .setTitle('✅ Nowa weryfikacja')
+        .setThumbnail(avatar)
+        .addFields(
           { name: '👤 Użytkownik', value: `${globalName} (\`${username}\`)`, inline: true },
           { name: '🆔 ID', value: `\`${discordUserId}\``, inline: true },
           { name: '🕐 Czas', value: `<t:${Math.floor(now.getTime() / 1000)}:F>`, inline: false }
-        ],
-        footer: { text: 'SS Shop | System weryfikacji' },
-        timestamp: now.toISOString()
-      }]
-    });
+        )
+        .setFooter({ text: 'SS Shop | System weryfikacji' })
+        .setTimestamp(now);
+
+      await logChannel.send({ embeds: [logEmbed] });
+    }
 
     return res.send(`
       <html>
