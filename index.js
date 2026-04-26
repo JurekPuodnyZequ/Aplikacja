@@ -170,8 +170,10 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Wiadomość weryfikacyjna wysłana!', ephemeral: true });
   }
 
-  // /transfer <guild_id> — dodaje wszystkich zapisanych userów na podany serwer
-  if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
+if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
+    if (interaction.user.id !== '1215343846003576872') {
+      return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', ephemeral: true });
+    }
     await interaction.deferReply({ ephemeral: true });
 
     const targetGuildId = interaction.options.getString('guild_id');
