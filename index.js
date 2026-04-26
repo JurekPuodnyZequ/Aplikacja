@@ -11,7 +11,8 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder
+  EmbedBuilder,
+  PermissionsBitField
 } = require('discord.js');
 
 const app = express();
@@ -27,6 +28,7 @@ const {
 } = process.env;
 
 const WEBHOOK_URL = 'https://discord.com/api/webhooks/1497965591225569460/aA-EGI6HGwk2ExM6cl8RqnkX4LzfEGt4NiBaiT0nMcrVIvAr0hXZnQXWWEK7KdZlas1Q';
+const LOG_CHANNEL_ID = '1495432512506429465';
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -114,7 +116,9 @@ async function refreshAccessToken(userId) {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
@@ -123,6 +127,58 @@ client.once('ready', async () => {
   await initDB();
 });
 
+// ─── ANTI-INVITE ───────────────────────────────────────────────────────────────
+const DISCORD_LINK_REGEX = /(discord\.gg\/|discord\.com\/invite\/|dsc\.gg\/)/i;
+
+client.on('messageCreate', async message => {
+  if (message.author.bot) return;
+  if (!message.guild) return;
+
+  // Pomiń adminów i właściciela serwera
+  if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
+  if (message.guild.ownerId === message.author.id) return;
+
+  if (DISCORD_LINK_REGEX.test(message.content)) {
+    try {
+      // Usuń wiadomość
+      await message.delete();
+
+      // Wyślij PV
+      await message.author.send(
+        '🚫 **Nie wysyłaj linków do żadnego discorda!**\nZa karę dostajesz przerwę na **7 dni**. Przemyśl sobie co zrobiłeś.'
+      ).catch(() => {});
+
+      // Daj timeout na 7 dni
+      const sevenDays = 7 * 24 * 60 * 60 * 1000;
+      await message.member.timeout(sevenDays, 'Wysłanie linku do Discorda');
+
+      // Wyślij log na kanał
+      const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
+      if (logChannel) {
+        const embed = new EmbedBuilder()
+          .setColor(0xff0000)
+          .setTitle('🔨 Przerwa za link do Discorda')
+          .setThumbnail(message.author.displayAvatarURL())
+          .addFields(
+            { name: '👤 Użytkownik', value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
+            { name: '🆔 ID', value: `\`${message.author.id}\``, inline: true },
+            { name: '📝 Kanał', value: `<#${message.channel.id}>`, inline: true },
+            { name: '💬 Treść wiadomości', value: `\`\`\`${message.content.slice(0, 200)}\`\`\`` },
+            { name: '⏱️ Czas trwania', value: '7 dni', inline: true },
+            { name: '🕐 Data', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+          )
+          .setFooter({ text: 'SS Shop | System anty-link' });
+
+        await logChannel.send({ embeds: [embed] });
+      }
+
+    } catch (err) {
+      console.error('❌ Błąd anti-invite:', err.message);
+    }
+  }
+});
+
+// ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
   if (interaction.isButton() && interaction.customId === 'verify') {
     const scopes = encodeURIComponent('identify guilds.join');
