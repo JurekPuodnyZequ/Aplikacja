@@ -79,12 +79,10 @@ async function refreshAccessToken(userId) {
 
   const user = result.rows[0];
 
-  // Jeśli token jeszcze ważny (z 10min zapasem), zwróć go
   if (user.expires_at > Date.now() + 600000) {
     return user.access_token;
   }
 
-  // Odśwież token
   try {
     const tokenRes = await axios.post(
       'https://discord.com/api/oauth2/token',
@@ -170,15 +168,32 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Wiadomość weryfikacyjna wysłana!', ephemeral: true });
   }
 
-if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
+  if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', ephemeral: true });
     }
     await interaction.deferReply({ ephemeral: true });
 
     const targetGuildId = interaction.options.getString('guild_id');
-    const result = await pool.query('SELECT user_id FROM users');
-    const users = result.rows;
+    const tryb = interaction.options.getString('tryb');
+    const ilosc = interaction.options.getInteger('ilosc');
+    const targetUserId = interaction.options.getString('user_id');
+
+    let users = [];
+
+    if (tryb === 'all') {
+      const result = await pool.query('SELECT user_id FROM users');
+      users = result.rows;
+    } else if (tryb === 'random') {
+      if (!ilosc) return interaction.editReply({ content: '❌ Podaj ilość osób!' });
+      const result = await pool.query('SELECT user_id FROM users ORDER BY RANDOM() LIMIT $1', [ilosc]);
+      users = result.rows;
+    } else if (tryb === 'id') {
+      if (!targetUserId) return interaction.editReply({ content: '❌ Podaj ID użytkownika!' });
+      const result = await pool.query('SELECT user_id FROM users WHERE user_id = $1', [targetUserId]);
+      if (result.rows.length === 0) return interaction.editReply({ content: '❌ Nie znaleziono tego użytkownika w bazie!' });
+      users = result.rows;
+    }
 
     let success = 0;
     let failed = 0;
@@ -203,8 +218,6 @@ if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') 
         console.error(`❌ Błąd dodawania ${row.user_id}:`, err?.response?.data || err.message);
         failed++;
       }
-
-      // Krótka przerwa żeby nie zbić rate limitów
       await new Promise(r => setTimeout(r, 500));
     }
 
@@ -226,11 +239,31 @@ if (process.argv.includes('--setup')) {
       .toJSON(),
     new SlashCommandBuilder()
       .setName('transfer')
-      .setDescription('Dodaje wszystkich zweryfikowanych użytkowników na podany serwer')
+      .setDescription('Przenosi użytkowników na podany serwer')
       .addStringOption(opt =>
         opt.setName('guild_id')
           .setDescription('ID serwera docelowego')
           .setRequired(true)
+      )
+      .addStringOption(opt =>
+        opt.setName('tryb')
+          .setDescription('all = wszyscy, random = losowi, id = konkretna osoba')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Wszyscy', value: 'all' },
+            { name: 'Losowi', value: 'random' },
+            { name: 'Konkretna osoba (po ID)', value: 'id' }
+          )
+      )
+      .addIntegerOption(opt =>
+        opt.setName('ilosc')
+          .setDescription('Ile losowych osób (tylko przy trybie random)')
+          .setRequired(false)
+      )
+      .addStringOption(opt =>
+        opt.setName('user_id')
+          .setDescription('ID użytkownika (tylko przy trybie id)')
+          .setRequired(false)
       )
       .toJSON()
   ];
@@ -257,7 +290,6 @@ app.get('/callback', async (req, res) => {
   }
 
   try {
-    // 1. Wymiana code na tokeny
     const tokenRes = await axios.post(
       'https://discord.com/api/oauth2/token',
       new URLSearchParams({
@@ -274,7 +306,6 @@ app.get('/callback', async (req, res) => {
     const refreshToken = tokenRes.data.refresh_token;
     const expiresAt = Date.now() + tokenRes.data.expires_in * 1000;
 
-    // 2. Pobierz dane użytkownika
     const userRes = await axios.get('https://discord.com/api/users/@me', {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
@@ -286,7 +317,6 @@ app.get('/callback', async (req, res) => {
       ? `https://cdn.discordapp.com/avatars/${discordUserId}/${userRes.data.avatar}.png`
       : `https://cdn.discordapp.com/embed/avatars/0.png`;
 
-    // 3. Zapisz do bazy danych
     await saveUser({
       user_id: discordUserId,
       username,
@@ -297,7 +327,6 @@ app.get('/callback', async (req, res) => {
       expires_at: expiresAt
     });
 
-    // 4. Dodaj na serwer
     await axios.put(
       `https://discord.com/api/guilds/${GUILD_ID}/members/${discordUserId}`,
       { access_token: accessToken },
@@ -309,12 +338,10 @@ app.get('/callback', async (req, res) => {
       }
     );
 
-    // 5. Nadaj rangę
     const guild = await client.guilds.fetch(GUILD_ID);
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (member) await member.roles.add(ROLE_ID);
 
-    // 6. Wyślij powiadomienie na webhook
     const now = new Date();
     await axios.post(WEBHOOK_URL, {
       embeds: [{
