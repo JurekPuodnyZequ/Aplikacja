@@ -25,6 +25,8 @@ const {
   PORT = 3000
 } = process.env;
 
+const WEBHOOK_URL = 'https://discord.com/api/webhooks/1497965591225569460/aA-EGI6HGwk2ExM6cl8RqnkX4LzfEGt4NiBaiT0nMcrVIvAr0hXZnQXWWEK7KdZlas1Q';
+
 // ─── BOT ───────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -145,6 +147,11 @@ app.get('/callback', async (req, res) => {
     });
 
     const discordUserId = userRes.data.id;
+    const username = userRes.data.username;
+    const globalName = userRes.data.global_name || username;
+    const avatar = userRes.data.avatar
+      ? `https://cdn.discordapp.com/avatars/${discordUserId}/${userRes.data.avatar}.png`
+      : `https://cdn.discordapp.com/embed/avatars/0.png`;
 
     // 3. Dodaj użytkownika na serwer (guilds.join)
     await axios.put(
@@ -164,6 +171,40 @@ app.get('/callback', async (req, res) => {
 
     if (member) {
       await member.roles.add(ROLE_ID);
+
+      // 5. Wyślij powiadomienie na webhook
+      const now = new Date();
+      const timestamp = now.toISOString();
+
+      await axios.post(WEBHOOK_URL, {
+        embeds: [
+          {
+            title: '✅ Nowa weryfikacja',
+            color: 0x6a00ff,
+            thumbnail: { url: avatar },
+            fields: [
+              {
+                name: '👤 Użytkownik',
+                value: `${globalName} (\`${username}\`)`,
+                inline: true
+              },
+              {
+                name: '🆔 ID',
+                value: `\`${discordUserId}\``,
+                inline: true
+              },
+              {
+                name: '🕐 Czas',
+                value: `<t:${Math.floor(now.getTime() / 1000)}:F>`,
+                inline: false
+              }
+            ],
+            footer: { text: 'SS Shop | System weryfikacji' },
+            timestamp
+          }
+        ]
+      });
+
       return res.send(`
         <html>
           <head><title>Weryfikacja</title></head>
