@@ -247,13 +247,14 @@ client.on('interactionCreate', async interaction => {
 
     let success = 0;
     let failed = 0;
+    let alreadyOnServer = 0;
 
     for (const row of users) {
       try {
         const accessToken = await refreshAccessToken(row.user_id);
         if (!accessToken) { failed++; continue; }
 
-        await axios.put(
+        const response = await axios.put(
           `https://discord.com/api/guilds/${targetGuildId}/members/${row.user_id}`,
           { access_token: accessToken },
           {
@@ -263,7 +264,13 @@ client.on('interactionCreate', async interaction => {
             }
           }
         );
-        success++;
+
+        // 201 = dodano nowego członka, 204 = już był na serwerze
+        if (response.status === 204) {
+          alreadyOnServer++;
+        } else {
+          success++;
+        }
       } catch (err) {
         console.error(`❌ Błąd dodawania ${row.user_id}:`, err?.response?.data || err.message);
         failed++;
@@ -272,7 +279,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     await interaction.editReply({
-      content: `✅ Transfer zakończony!\n✅ Dodano: **${success}** użytkowników\n❌ Błędów: **${failed}**`
+      content: `✅ Transfer zakończony!\n✅ Dodano: **${success}** użytkowników\n👥 Już na serwerze: **${alreadyOnServer}**\n❌ Błędów: **${failed}**`
     });
   }
 });
