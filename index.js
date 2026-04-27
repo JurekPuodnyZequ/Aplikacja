@@ -36,6 +36,9 @@ const LOG_CHANNEL_ID = '1495432512506429465';
 const KALKULATOR_CHANNEL_ID = '1498340002323628164';
 const KALKULATOR_MSG_KEY = 'kalkulator_message_id';
 
+const BOOSTY_CHANNEL_ID = '1497988827250294967';
+const BOOSTY_MSG_KEY = 'boosty_message_id';
+
 // ─── KONFIGURACJA PRZELICZNIKA ────────────────────────────────────────────────
 const PRZELICZNIK = 8000; // 1 zł = 8000$
 
@@ -291,6 +294,70 @@ async function sendOrUpdateKalkulator(client) {
   }
 }
 
+// ─── NAGRODY ZA BOOSTY ─────────────────────────────────────────────────────────
+
+function buildBoostyEmbed() {
+  return new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setAuthor({
+      name: '💜 SS Shop 💜 × Nagrody za Boosty',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+    })
+    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setTitle('💜 Nagrody za Boostowanie Serwera 💜')
+    .setDescription(
+      '>>> Chcesz wesprzeć nasz serwer i otrzymać za to nagrodę?\n' +
+      'Poniżej znajdziesz listę nagród, które otrzymasz za ulepszenie (boost) naszego serwera!\n\n' +
+      '💜 **Dziękujemy za każde wsparcie!**'
+    )
+    .addFields(
+      {
+        name: '💎 Nagrody na trybie Anarchia',
+        value: 
+          '✨ **1 boost** — `50,000 $` na anarchii\n' +
+          '✨ **2 boosty** — `120,000 $` na anarchii\n' +
+          '✨ **3 boosty** — `180,000 $` na anarchii\n' +
+          '✨ **4 boosty** — `300,000 $` na anarchii\n' +
+          '✨ **5+ boostów** — `420,000 $` na anarchii\n\n' +
+          '💡 *Każdy kolejny boost powyżej 5 to dodatkowe `120,000 $` (np. 7 boostów = 660k).*
+',
+        inline: false
+      }
+    )
+    .setFooter({ text: 'SS Shop | Nagrody za Boosty 💜' })
+    .setTimestamp();
+}
+
+async function sendOrUpdateBoosty(client) {
+  try {
+    const channel = await client.channels.fetch(BOOSTY_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+      console.error('❌ Nie znaleziono kanału boostów:', BOOSTY_CHANNEL_ID);
+      return;
+    }
+
+    const embed = buildBoostyEmbed();
+    const existingMsgId = await getConfig(BOOSTY_MSG_KEY);
+
+    if (existingMsgId) {
+      try {
+        const existing = await channel.messages.fetch(existingMsgId);
+        await existing.edit({ embeds: [embed] });
+        console.log('✅ Wiadomość o boostach zaktualizowana!');
+        return;
+      } catch {
+        // wiadomość usunięta – wyślij nową
+      }
+    }
+
+    const msg = await channel.send({ embeds: [embed] });
+    await setConfig(BOOSTY_MSG_KEY, msg.id);
+    console.log('✅ Wiadomość o boostach wysłana!');
+  } catch (err) {
+    console.error('❌ Błąd wiadomości o boostach:', err.message);
+  }
+}
+
 // ─── BOT ───────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -305,6 +372,7 @@ client.once('ready', async () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
   await initDB();
   await sendOrUpdateKalkulator(client);
+  await sendOrUpdateBoosty(client);
 });
 
 // ─── ANTI-INVITE ───────────────────────────────────────────────────────────────
