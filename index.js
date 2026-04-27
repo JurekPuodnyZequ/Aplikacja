@@ -12,6 +12,8 @@ const {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   PermissionsBitField
 } = require('discord.js');
 
@@ -28,6 +30,8 @@ const {
 } = process.env;
 
 const LOG_CHANNEL_ID = '1495432512506429465';
+const KALKULATOR_CHANNEL_ID = '1498340002323628164';
+const KALKULATOR_MSG_KEY = 'kalkulator_message_id';
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -46,6 +50,12 @@ async function initDB() {
       refresh_token TEXT,
       expires_at BIGINT,
       authorized_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bot_config (
+      key TEXT PRIMARY KEY,
+      value TEXT
     )
   `);
   console.log('✅ Baza danych gotowa!');
@@ -72,6 +82,18 @@ async function saveUser(userData) {
     userData.refresh_token,
     userData.expires_at
   ]);
+}
+
+async function getConfig(key) {
+  const res = await pool.query('SELECT value FROM bot_config WHERE key = $1', [key]);
+  return res.rows.length > 0 ? res.rows[0].value : null;
+}
+
+async function setConfig(key, value) {
+  await pool.query(`
+    INSERT INTO bot_config (key, value) VALUES ($1, $2)
+    ON CONFLICT (key) DO UPDATE SET value = $2
+  `, [key, value]);
 }
 
 async function refreshAccessToken(userId) {
@@ -111,6 +133,106 @@ async function refreshAccessToken(userId) {
   }
 }
 
+// ─── KALKULATOR PROWIZJI ───────────────────────────────────────────────────────
+
+const PROWIZJE = {
+  'blik_telefon': { nazwa: 'BLIK na numer telefonu', prowizja: 0, emoji: '💙' },
+  'blik_kod':     { nazwa: 'Kod BLIK',               prowizja: 2, emoji: '<:blik:1498356421262053386>' },
+  'btc':          { nazwa: 'BTC (Bitcoin)',           prowizja: 7, emoji: '<:btc:1498356295408029807>' },
+  'ltc':          { nazwa: 'LTC (Litecoin)',          prowizja: 7, emoji: '<:ltc:1498356372339818747>' },
+  'usdt':         { nazwa: 'USDT',                   prowizja: 7, emoji: '<:usdt:1498356339053822102>' },
+  'usdc':         { nazwa: 'USDC',                   prowizja: 7, emoji: '<:usdc:1498356270498054264>' },
+  'eth':          { nazwa: 'ETH (Ethereum)',          prowizja: 7, emoji: '<:eth:1498008998299959397>' },
+  'paypal':       { nazwa: 'PayPal',                 prowizja: 13, emoji: '<:paypal:1498357795433746653>' },
+  'psc_paragon':  { nazwa: 'PSC z paragonem',        prowizja: 13, emoji: '<:psc:1498356914013339705>' },
+  'psc_bez':      { nazwa: 'PSC bez paragonu',       prowizja: 20, emoji: '<:psc:1498356914013339705>' },
+  'mypsc':        { nazwa: 'MyPSC (tylko)',          prowizja: 25, emoji: '<:mypsc:1498356473153978450>' },
+};
+
+function buildKalkulatorComponents() {
+  const options = Object.entries(PROWIZJE).map(([value, data]) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(`${data.nazwa} — ${data.prowizja}% prowizji`)
+      .setValue(value)
+      .setEmoji(data.emoji.startsWith('<') ? { id: data.emoji.match(/\d{17,20}/)?.[0] } : { name: data.emoji })
+  );
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('kalkulator_metoda')
+    .setPlaceholder('💜 Wybierz metodę płatności...')
+    .addOptions(options);
+
+  const row1 = new ActionRowBuilder().addComponents(select);
+
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('kalkulator_ile_dostane')
+      .setLabel('💰 Ile dolarów serwerowych dostanę?')
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('kalkulator_ile_dac')
+      .setLabel('💸 Ile muszę dać, aby otrzymać określoną kwotę dolarów serwerowych?')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  return [row1, row2];
+}
+
+function buildKalkulatorEmbed() {
+  return new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setAuthor({
+      name: '💜 SS Shop 💜 × Kalkulator Prowizji',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+    })
+    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setTitle('💜 Kalkulator Prowizji — SS Shop 💜')
+    .setDescription(
+      '>>> Jeżeli chcesz obliczyć **prowizję swojej wymiany**, wybierz metodę płatności z menu poniżej, a następnie kliknij odpowiedni przycisk.\n\n' +
+      '💜 **Wybierz metodę płatności** i zdecyduj, co chcesz obliczyć!'
+    )
+    .addFields(
+      {
+        name: '💜 Dostępne metody płatności',
+        value: Object.values(PROWIZJE).map(d => `${d.emoji} **${d.nazwa}** — \`${d.prowizja}%\` prowizji`).join('\n'),
+        inline: false
+      }
+    )
+    .setFooter({ text: 'SS Shop | Kalkulator Prowizji 💜' })
+    .setTimestamp();
+}
+
+async function sendOrUpdateKalkulator(client) {
+  try {
+    const channel = await client.channels.fetch(KALKULATOR_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+      console.error('❌ Nie znaleziono kanału kalkulatora:', KALKULATOR_CHANNEL_ID);
+      return;
+    }
+
+    const embed = buildKalkulatorEmbed();
+    const components = buildKalkulatorComponents();
+    const existingMsgId = await getConfig(KALKULATOR_MSG_KEY);
+
+    if (existingMsgId) {
+      try {
+        const existing = await channel.messages.fetch(existingMsgId);
+        await existing.edit({ embeds: [embed], components });
+        console.log('✅ Wiadomość kalkulatora zaktualizowana!');
+        return;
+      } catch {
+        // wiadomość usunięta – wyślij nową
+      }
+    }
+
+    const msg = await channel.send({ embeds: [embed], components });
+    await setConfig(KALKULATOR_MSG_KEY, msg.id);
+    console.log('✅ Wiadomość kalkulatora wysłana!');
+  } catch (err) {
+    console.error('❌ Błąd kalkulatora:', err.message);
+  }
+}
+
 // ─── BOT ───────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -124,6 +246,7 @@ const client = new Client({
 client.once('ready', async () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
   await initDB();
+  await sendOrUpdateKalkulator(client);
 });
 
 // ─── ANTI-INVITE ───────────────────────────────────────────────────────────────
@@ -173,7 +296,105 @@ client.on('messageCreate', async message => {
 });
 
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
+
+// Tymczasowe przechowywanie wybranej metody (per user, w pamięci)
+const userSelectedMethod = new Map();
+
 client.on('interactionCreate', async interaction => {
+
+  // ─── SELECT MENU — wybór metody ────────────────────────────────────────────
+  if (interaction.isStringSelectMenu() && interaction.customId === 'kalkulator_metoda') {
+    const value = interaction.values[0];
+    userSelectedMethod.set(interaction.user.id, value);
+    const metoda = PROWIZJE[value];
+    await interaction.reply({
+      content: `💜 Wybrano: **${metoda.emoji} ${metoda.nazwa}** (\`${metoda.prowizja}%\` prowizji).\nTeraz kliknij jeden z przycisków poniżej, aby obliczyć kwotę!`,
+      ephemeral: true
+    });
+    return;
+  }
+
+  // ─── BUTTON — ile dolarów dostanę ─────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
+    const metodaKey = userSelectedMethod.get(interaction.user.id);
+    if (!metodaKey) {
+      await interaction.reply({ content: '❌ Najpierw wybierz metodę płatności z menu!', ephemeral: true });
+      return;
+    }
+    const metoda = PROWIZJE[metodaKey];
+    await interaction.reply({
+      content:
+        `💜 **Ile dolarów serwerowych dostanę?**\n\n` +
+        `Wybrana metoda: **${metoda.emoji} ${metoda.nazwa}** (\`${metoda.prowizja}%\` prowizji)\n\n` +
+        `Podaj kwotę, którą **wysyłasz** (np. \`100\`), a ja obliczę ile dolarów serwerowych otrzymasz.\n` +
+        `✏️ Napisz kwotę w tej wiadomości (odpowiedz na ten ephemeral lub napisz na czacie).`,
+      ephemeral: true
+    });
+
+    // Czekamy na odpowiedź użytkownika
+    const filter = m => m.author.id === interaction.user.id;
+    const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
+    collector.on('collect', async msg => {
+      const kwota = parseFloat(msg.content.replace(',', '.'));
+      if (isNaN(kwota) || kwota <= 0) {
+        await msg.reply({ content: '❌ Podaj prawidłową kwotę liczbową!', allowedMentions: { repliedUser: false } });
+        return;
+      }
+      const po_prowizji = kwota * (1 - metoda.prowizja / 100);
+      await msg.reply({
+        content:
+          `💜 **Wynik kalkulatora SS Shop:**\n\n` +
+          `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
+          `💵 Wysyłasz: **${kwota.toFixed(2)}**\n` +
+          `💸 Prowizja (\`${metoda.prowizja}%\`): **-${(kwota - po_prowizji).toFixed(2)}**\n` +
+          `💜 Dolary serwerowe, które otrzymasz: **${po_prowizji.toFixed(2)} $**`,
+        allowedMentions: { repliedUser: false }
+      });
+      try { await msg.delete().catch(() => {}); } catch {}
+    });
+    return;
+  }
+
+  // ─── BUTTON — ile dać aby dostać określoną kwotę ─────────────────────────
+  if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dac') {
+    const metodaKey = userSelectedMethod.get(interaction.user.id);
+    if (!metodaKey) {
+      await interaction.reply({ content: '❌ Najpierw wybierz metodę płatności z menu!', ephemeral: true });
+      return;
+    }
+    const metoda = PROWIZJE[metodaKey];
+    await interaction.reply({
+      content:
+        `💜 **Ile muszę dać, aby otrzymać określoną kwotę dolarów serwerowych?**\n\n` +
+        `Wybrana metoda: **${metoda.emoji} ${metoda.nazwa}** (\`${metoda.prowizja}%\` prowizji)\n\n` +
+        `Podaj kwotę dolarów serwerowych, którą **chcesz otrzymać** (np. \`100\`).`,
+      ephemeral: true
+    });
+
+    const filter = m => m.author.id === interaction.user.id;
+    const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
+    collector.on('collect', async msg => {
+      const kwota = parseFloat(msg.content.replace(',', '.'));
+      if (isNaN(kwota) || kwota <= 0) {
+        await msg.reply({ content: '❌ Podaj prawidłową kwotę liczbową!', allowedMentions: { repliedUser: false } });
+        return;
+      }
+      const do_wyslania = kwota / (1 - metoda.prowizja / 100);
+      await msg.reply({
+        content:
+          `💜 **Wynik kalkulatora SS Shop:**\n\n` +
+          `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
+          `💜 Chcesz otrzymać: **${kwota.toFixed(2)} $** dolarów serwerowych\n` +
+          `💸 Prowizja (\`${metoda.prowizja}%\`): **+${(do_wyslania - kwota).toFixed(2)}**\n` +
+          `💵 Musisz wysłać: **${do_wyslania.toFixed(2)}**`,
+        allowedMentions: { repliedUser: false }
+      });
+      try { await msg.delete().catch(() => {}); } catch {}
+    });
+    return;
+  }
+
+  // ─── BUTTON — weryfikacja ──────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'verify') {
     const scopes = encodeURIComponent('identify guilds.join');
     const state = interaction.user.id;
@@ -193,6 +414,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ─── COMMAND — setup-verify ────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
     const embed = new EmbedBuilder()
       .setColor("#6a00ff")
@@ -218,6 +440,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: 'Wiadomość weryfikacyjna wysłana!', ephemeral: true });
   }
 
+  // ─── COMMAND — transfer ────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', ephemeral: true });
@@ -270,13 +493,11 @@ client.on('interactionCreate', async interaction => {
             }
           );
 
-          // 201 = dodano nowego członka, 204 = już był na serwerze
           if (response.status === 204) {
             alreadyOnServer++;
           } else {
             success++;
 
-            // Nadaj rangę po dołączeniu
             try {
               const targetGuild = await client.guilds.fetch(targetGuildId).catch(() => null);
               if (targetGuild) {
@@ -287,7 +508,6 @@ client.on('interactionCreate', async interaction => {
               console.error(`❌ Błąd nadawania rangi dla ${row.user_id}:`, roleErr.message);
             }
 
-            // Wiadomość powitalna
             try {
               const joinChannel = await client.channels.fetch('1495432511893803063').catch(() => null);
               if (joinChannel) {
@@ -297,12 +517,11 @@ client.on('interactionCreate', async interaction => {
               console.error(`❌ Błąd wysyłania wiadomości powitalnej:`, msgErr.message);
             }
           }
-          break; // sukces - wychodzimy z petli retry
+          break;
 
         } catch (err) {
           const data = err?.response?.data;
 
-          // Rate limit – czekamy tyle ile Discord każe + 200ms bufora
           if (err?.response?.status === 429 && data?.retry_after) {
             const waitMs = Math.ceil(data.retry_after) + 200;
             console.log(`⏳ Rate limit dla ${row.user_id}, czekam ${waitMs}ms...`);
@@ -311,7 +530,6 @@ client.on('interactionCreate', async interaction => {
             continue;
           }
 
-          // Odautoryzowany token
           if (data?.code === 50025) {
             deauthorized++;
             break;
@@ -328,7 +546,6 @@ client.on('interactionCreate', async interaction => {
         failed++;
       }
 
-      // Stały odstęp między requestami – 1,1s zamiast 0,5s (bezpieczniejszy)
       await new Promise(r => setTimeout(r, 1100));
     }
 
@@ -453,13 +670,11 @@ app.get('/callback', async (req, res) => {
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (member) await member.roles.add(ROLE_ID);
 
-    // ─── WIADOMOŚĆ POWITALNA ───────────────────────────────────────────────────
     const joinChannel = client.channels.cache.get('1495432511893803063');
     if (joinChannel) {
       await joinChannel.send(`💜 Użytkownik <@${discordUserId}> wszedł na serwer za pomocą bota SS Shop 💜`);
     }
 
-    // Wyślij log na kanał
     const now = new Date();
     const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
     if (logChannel) {
