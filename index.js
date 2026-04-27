@@ -432,6 +432,12 @@ app.get('/callback', async (req, res) => {
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (member) await member.roles.add(ROLE_ID);
 
+    // ─── WIADOMOŚĆ POWITALNA ───────────────────────────────────────────────────
+    const joinChannel = client.channels.cache.get('1495432511893803063');
+    if (joinChannel) {
+      await joinChannel.send(`💜 Użytkownik <@${discordUserId}> wszedł na serwer za pomocą bota SS Shop 💜`);
+    }
+
     // Wyślij log na kanał
     const now = new Date();
     const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
