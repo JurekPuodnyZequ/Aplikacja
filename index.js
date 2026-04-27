@@ -248,6 +248,7 @@ client.on('interactionCreate', async interaction => {
     let success = 0;
     let failed = 0;
     let alreadyOnServer = 0;
+    let deauthorized = 0;
 
     for (const row of users) {
       let attempts = 0;
@@ -289,6 +290,12 @@ client.on('interactionCreate', async interaction => {
             continue;
           }
 
+          // Odautoryzowany token
+          if (data?.code === 50025) {
+            deauthorized++;
+            break;
+          }
+
           console.error(`❌ Błąd dodawania ${row.user_id}:`, data || err.message);
           failed++;
           break;
@@ -305,7 +312,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     await interaction.editReply({
-      content: `✅ Transfer zakończony!\n✅ Dodano: **${success}** użytkowników\n👥 Już na serwerze: **${alreadyOnServer}**\n❌ Błędów: **${failed}**`
+      content: `✅ Transfer zakończony!\n✅ Dodano: **${success}** użytkowników\n👥 Już na serwerze: **${alreadyOnServer}**\n❌ Błędów: **${failed}**\n🚫 Odautoryzowali: **${deauthorized}**`
     });
   }
 });
