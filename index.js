@@ -250,32 +250,58 @@ client.on('interactionCreate', async interaction => {
     let alreadyOnServer = 0;
 
     for (const row of users) {
-      try {
-        const accessToken = await refreshAccessToken(row.user_id);
-        if (!accessToken) { failed++; continue; }
+      let attempts = 0;
+      const maxAttempts = 3;
 
-        const response = await axios.put(
-          `https://discord.com/api/guilds/${targetGuildId}/members/${row.user_id}`,
-          { access_token: accessToken },
-          {
-            headers: {
-              Authorization: `Bot ${BOT_TOKEN}`,
-              'Content-Type': 'application/json'
+      while (attempts < maxAttempts) {
+        try {
+          const accessToken = await refreshAccessToken(row.user_id);
+          if (!accessToken) { failed++; break; }
+
+          const response = await axios.put(
+            `https://discord.com/api/guilds/${targetGuildId}/members/${row.user_id}`,
+            { access_token: accessToken },
+            {
+              headers: {
+                Authorization: `Bot ${BOT_TOKEN}`,
+                'Content-Type': 'application/json'
+              }
             }
-          }
-        );
+          );
 
-        // 201 = dodano nowego członka, 204 = już był na serwerze
-        if (response.status === 204) {
-          alreadyOnServer++;
-        } else {
-          success++;
+          // 201 = dodano nowego członka, 204 = już był na serwerze
+          if (response.status === 204) {
+            alreadyOnServer++;
+          } else {
+            success++;
+          }
+          break; // sukces – wychodzimy z pętli retry
+
+        } catch (err) {
+          const data = err?.response?.data;
+
+          // Rate limit – czekamy tyle ile Discord każe + 200ms bufora
+          if (err?.response?.status === 429 && data?.retry_after) {
+            const waitMs = Math.ceil(data.retry_after) + 200;
+            console.log(`⏳ Rate limit dla ${row.user_id}, czekam ${waitMs}ms...`);
+            await new Promise(r => setTimeout(r, waitMs));
+            attempts++;
+            continue;
+          }
+
+          console.error(`❌ Błąd dodawania ${row.user_id}:`, data || err.message);
+          failed++;
+          break;
         }
-      } catch (err) {
-        console.error(`❌ Błąd dodawania ${row.user_id}:`, err?.response?.data || err.message);
+      }
+
+      if (attempts >= maxAttempts) {
+        console.error(`❌ Przekroczono limit prób dla ${row.user_id}`);
         failed++;
       }
-      await new Promise(r => setTimeout(r, 500));
+
+      // Stały odstęp między requestami – 1,1s zamiast 0,5s (bezpieczniejszy)
+      await new Promise(r => setTimeout(r, 1100));
     }
 
     await interaction.editReply({
