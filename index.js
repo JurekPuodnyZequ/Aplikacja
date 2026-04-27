@@ -36,6 +36,9 @@ const LOG_CHANNEL_ID = '1495432512506429465';
 const KALKULATOR_CHANNEL_ID = '1498340002323628164';
 const KALKULATOR_MSG_KEY = 'kalkulator_message_id';
 
+// ─── KONFIGURACJA PRZELICZNIKA ────────────────────────────────────────────────
+const PRZELICZNIK = 8000; // 1 zł = 8000$
+
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:ooqqGeeYDMypYAkQVxqJTNBstkLreIzr@postgres.railway.internal:5432/railway',
@@ -176,14 +179,17 @@ function parseDolary(input) {
     if (isNaN(val) || val <= 0) return null;
     return val * 1_000;
   }
+  // Obsługa samej liczby jeśli użytkownik zapomni k/m
+  const val = parseFloat(trimmed);
+  if (!isNaN(val) && val > 0) return val;
   return null;
 }
 
 // Formatowanie liczby z k/m
 function formatDolary(val) {
-  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}m`;
-  if (val >= 1_000) return `${(val / 1_000).toFixed(2)}k`;
-  return val.toFixed(2);
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2).replace(/\.00$/, '')}m`;
+  if (val >= 1_000) return `${(val / 1_000).toFixed(2).replace(/\.00$/, '')}k`;
+  return val.toLocaleString('pl-PL');
 }
 
 function buildSelectMenuRow(customId) {
@@ -239,6 +245,11 @@ function buildKalkulatorEmbed() {
       '💜 Kliknij przycisk i postępuj zgodnie z instrukcjami!'
     )
     .addFields(
+      {
+        name: '💜 Kurs wymiany',
+        value: `1 zł = **${formatDolary(PRZELICZNIK)} $**`,
+        inline: true
+      },
       {
         name: '💜 Dostępne metody płatności',
         value: Object.values(PROWIZJE).map(d => `${d.emoji} **${d.nazwa}** — \`${d.prowizja}%\` prowizji`).join('\n'),
@@ -347,7 +358,6 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
 
   // ─── BUTTON — ile dolarów dostanę ─────────────────────────────────────────
-  // Krok 1: Pokaż select menu (ephemeral) z wyborem metody
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
     const selectRow = buildSelectMenuRow('select_ile_dostane');
     await interaction.reply({
@@ -361,7 +371,6 @@ client.on('interactionCreate', async interaction => {
   // Krok 2a: Wybrano metodę → pokaż modal z polem na kwotę w zł
   if (interaction.isStringSelectMenu() && interaction.customId === 'select_ile_dostane') {
     const metodaKey = interaction.values[0];
-    const metoda = PROWIZJE[metodaKey];
 
     const modal = new ModalBuilder()
       .setCustomId(`modal_ile_dostane_${metodaKey}`)
@@ -369,8 +378,8 @@ client.on('interactionCreate', async interaction => {
 
     const kwotaInput = new TextInputBuilder()
       .setCustomId('kwota_zl')
-      .setLabel(`Podaj kwotę w złotych (np. 100zł, 50zł)`)
-      .setPlaceholder('Wpisz kwotę z "zł" na końcu, np. 100zł')
+      .setLabel(`Podaj kwotę w zł (np. 10zł, 100zł)`)
+      .setPlaceholder('Wpisz kwotę z "zł" na końcu, np. 10zł')
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
       .setMaxLength(20);
@@ -385,18 +394,22 @@ client.on('interactionCreate', async interaction => {
     const metodaKey = interaction.customId.replace('modal_ile_dostane_', '');
     const metoda = PROWIZJE[metodaKey];
     const rawInput = interaction.fields.getTextInputValue('kwota_zl');
-    const kwota = parseZloty(rawInput);
+    const kwotaZl = parseZloty(rawInput);
 
-    if (!kwota) {
+    if (!kwotaZl) {
       await interaction.reply({
-        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`zł\` na końcu, np. \`100zł\`, \`50zł\`, \`250zł\`.\nSpróbuj ponownie!`,
+        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`zł\` na końcu, np. \`10zł\`, \`50zł\`, \`100zł\`.\nSpróbuj ponownie!`,
         ephemeral: true
       });
       return;
     }
 
-    const po_prowizji = kwota * (1 - metoda.prowizja / 100);
-    const prowizja_kwota = kwota - po_prowizji;
+    // Obliczenia:
+    // 1. Kwota po prowizji (to co faktycznie idzie na zakup)
+    const po_prowizji_zl = kwotaZl * (1 - metoda.prowizja / 100);
+    const prowizja_zl = kwotaZl - po_prowizji_zl;
+    // 2. Ile to dolarów (1 zł = 8000$)
+    const dolary = po_prowizji_zl * PRZELICZNIK;
 
     const emojiDisplay = metoda.emoji.startsWith('<') ? metoda.emoji : metoda.emoji;
 
@@ -404,16 +417,15 @@ client.on('interactionCreate', async interaction => {
       content:
         `💜 **Wynik kalkulatora SS Shop:**\n\n` +
         `${emojiDisplay} Metoda: **${metoda.nazwa}**\n` +
-        `💵 Wysyłasz: **${kwota.toFixed(2)} zł**\n` +
-        `💸 Prowizja (\`${metoda.prowizja}%\`): **-${prowizja_kwota.toFixed(2)} zł**\n` +
-        `💜 Dolary serwerowe, które otrzymasz: **${po_prowizji.toFixed(2)} $**`,
+        `💵 Wysyłasz: **${kwotaZl.toFixed(2)} zł**\n` +
+        `💸 Prowizja (\`${metoda.prowizja}%\`): **-${prowizja_zl.toFixed(2)} zł**\n` +
+        `💜 Dolary serwerowe, które otrzymasz: **${formatDolary(dolary)} $**`,
       ephemeral: true
     });
     return;
   }
 
   // ─── BUTTON — ile zapłacić za tyle dolarów serwerowych ───────────────────
-  // Krok 1: Pokaż select menu (ephemeral) z wyborem metody
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_zaplacic') {
     const selectRow = buildSelectMenuRow('select_ile_zaplacic');
     await interaction.reply({
@@ -434,8 +446,8 @@ client.on('interactionCreate', async interaction => {
 
     const kwotaInput = new TextInputBuilder()
       .setCustomId('kwota_dolary')
-      .setLabel('Podaj kwotę $ serwerowych (np. 100k, 1m, 500k)')
-      .setPlaceholder('Wpisz kwotę z "k" lub "m" na końcu, np. 100k')
+      .setLabel('Podaj kwotę $ (np. 80k, 800k, 1m)')
+      .setPlaceholder('Wpisz kwotę z "k" lub "m", np. 80k')
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
       .setMaxLength(20);
@@ -450,18 +462,24 @@ client.on('interactionCreate', async interaction => {
     const metodaKey = interaction.customId.replace('modal_ile_zaplacic_', '');
     const metoda = PROWIZJE[metodaKey];
     const rawInput = interaction.fields.getTextInputValue('kwota_dolary');
-    const kwota = parseDolary(rawInput);
+    const dolary = parseDolary(rawInput);
 
-    if (!kwota) {
+    if (!dolary) {
       await interaction.reply({
-        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`k\` (tysiące) lub \`m\` (miliony) na końcu, np. \`100k\`, \`1m\`, \`500k\`.\nSama liczba bez przyrostka nie jest akceptowana. Spróbuj ponownie!`,
+        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`k\` (tysiące) lub \`m\` (miliony) na końcu, np. \`80k\`, \`800k\`, \`1m\`.\nSpróbuj ponownie!`,
         ephemeral: true
       });
       return;
     }
 
-    const do_wyslania = kwota / (1 - metoda.prowizja / 100);
-    const prowizja_kwota = do_wyslania - kwota;
+    // Obliczenia:
+    // 1. Ile zł potrzeba na te dolary (1 zł = 8000$)
+    const bazowa_cena_zl = dolary / PRZELICZNIK;
+    // 2. Doliczamy prowizję, aby po jej odjęciu została bazowa cena
+    // Cena_z_prowizja * (1 - prowizja%) = bazowa_cena
+    // Cena_z_prowizja = bazowa_cena / (1 - prowizja%)
+    const do_zaplaty_zl = bazowa_cena_zl / (1 - metoda.prowizja / 100);
+    const prowizja_zl = do_zaplaty_zl - bazowa_cena_zl;
 
     const emojiDisplay = metoda.emoji.startsWith('<') ? metoda.emoji : metoda.emoji;
 
@@ -469,9 +487,9 @@ client.on('interactionCreate', async interaction => {
       content:
         `💜 **Wynik kalkulatora SS Shop:**\n\n` +
         `${emojiDisplay} Metoda: **${metoda.nazwa}**\n` +
-        `💜 Chcesz otrzymać: **${formatDolary(kwota)} $** dolarów serwerowych\n` +
-        `💸 Prowizja (\`${metoda.prowizja}%\`): **+${do_wyslania.toFixed(2)} zł**\n` +
-        `💵 Musisz zapłacić: **${do_wyslania.toFixed(2)} zł**`,
+        `💜 Chcesz otrzymać: **${formatDolary(dolary)} $**\n` +
+        `💸 Prowizja (\`${metoda.prowizja}%\`): **+${prowizja_zl.toFixed(2)} zł**\n` +
+        `💵 Musisz zapłacić łącznie: **${do_zaplaty_zl.toFixed(2)} zł**`,
       ephemeral: true
     });
     return;
@@ -499,6 +517,10 @@ client.on('interactionCreate', async interaction => {
 
   // ─── COMMAND — setup-verify ────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return interaction.reply({ content: '❌ Brak uprawnień.', ephemeral: true });
+    }
+
     const embed = new EmbedBuilder()
       .setColor("#6a00ff")
       .setAuthor({
