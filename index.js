@@ -275,8 +275,29 @@ client.on('interactionCreate', async interaction => {
             alreadyOnServer++;
           } else {
             success++;
+
+            // Nadaj rangę po dołączeniu
+            try {
+              const targetGuild = await client.guilds.fetch(targetGuildId).catch(() => null);
+              if (targetGuild) {
+                const member = await targetGuild.members.fetch(row.user_id).catch(() => null);
+                if (member) await member.roles.add('1495432509263974431');
+              }
+            } catch (roleErr) {
+              console.error(`❌ Błąd nadawania rangi dla ${row.user_id}:`, roleErr.message);
+            }
+
+            // Wiadomość powitalna
+            try {
+              const joinChannel = await client.channels.fetch('1495432511893803063').catch(() => null);
+              if (joinChannel) {
+                await joinChannel.send(`💜 Użytkownik <@${row.user_id}> wszedł na serwer za pomocą bota SS Shop 💜`);
+              }
+            } catch (msgErr) {
+              console.error(`❌ Błąd wysyłania wiadomości powitalnej:`, msgErr.message);
+            }
           }
-          break; // sukces – wychodzimy z pętli retry
+          break; // sukces - wychodzimy z petli retry
 
         } catch (err) {
           const data = err?.response?.data;
