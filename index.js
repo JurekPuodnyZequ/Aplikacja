@@ -319,8 +319,7 @@ function buildBoostyEmbed() {
           '✨ **3 boosty** — `180,000 $` na anarchii\n' +
           '✨ **4 boosty** — `300,000 $` na anarchii\n' +
           '✨ **5+ boostów** — `420,000 $` na anarchii\n\n' +
-          '💡 *Każdy kolejny boost powyżej 5 to dodatkowe `120,000 $` (np. 7 boostów = 660k).*
-',
+          '💡 *Każdy kolejny boost powyżej 5 to dodatkowe `120,000 $` (np. 7 boostów = 660k).*',
         inline: false
       }
     )
