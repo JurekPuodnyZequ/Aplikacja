@@ -14,6 +14,9 @@ const {
   EmbedBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   PermissionsBitField
 } = require('discord.js');
 
@@ -136,46 +139,89 @@ async function refreshAccessToken(userId) {
 // ─── KALKULATOR PROWIZJI ───────────────────────────────────────────────────────
 
 const PROWIZJE = {
-  'blik_telefon': { nazwa: 'BLIK na numer telefonu', prowizja: 0, emoji: '💙' },
-  'blik_kod':     { nazwa: 'Kod BLIK',               prowizja: 2, emoji: '<:blik:1498356421262053386>' },
-  'btc':          { nazwa: 'BTC (Bitcoin)',           prowizja: 7, emoji: '<:btc:1498356295408029807>' },
-  'ltc':          { nazwa: 'LTC (Litecoin)',          prowizja: 7, emoji: '<:ltc:1498356372339818747>' },
-  'usdt':         { nazwa: 'USDT',                   prowizja: 7, emoji: '<:usdt:1498356339053822102>' },
-  'usdc':         { nazwa: 'USDC',                   prowizja: 7, emoji: '<:usdc:1498356270498054264>' },
-  'eth':          { nazwa: 'ETH (Ethereum)',          prowizja: 7, emoji: '<:eth:1498008998299959397>' },
+  'blik_telefon': { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
+  'blik_kod':     { nazwa: 'Kod BLIK',               prowizja: 2,  emoji: '<:blik:1498356421262053386>' },
+  'btc':          { nazwa: 'BTC (Bitcoin)',           prowizja: 7,  emoji: '<:btc:1498356295408029807>' },
+  'ltc':          { nazwa: 'LTC (Litecoin)',          prowizja: 7,  emoji: '<:ltc:1498356372339818747>' },
+  'usdt':         { nazwa: 'USDT',                   prowizja: 7,  emoji: '<:usdt:1498356339053822102>' },
+  'usdc':         { nazwa: 'USDC',                   prowizja: 7,  emoji: '<:usdc:1498356270498054264>' },
+  'eth':          { nazwa: 'ETH (Ethereum)',          prowizja: 7,  emoji: '<:eth:1498008998299959397>' },
   'paypal':       { nazwa: 'PayPal',                 prowizja: 13, emoji: '<:paypal:1498357795433746653>' },
   'psc_paragon':  { nazwa: 'PSC z paragonem',        prowizja: 13, emoji: '<:psc:1498356914013339705>' },
   'psc_bez':      { nazwa: 'PSC bez paragonu',       prowizja: 20, emoji: '<:psc:1498356914013339705>' },
   'mypsc':        { nazwa: 'MyPSC (tylko)',          prowizja: 25, emoji: '<:mypsc:1498356473153978450>' },
 };
 
-function buildKalkulatorComponents() {
-  const options = Object.entries(PROWIZJE).map(([value, data]) =>
-    new StringSelectMenuOptionBuilder()
+// Pomocnik: parsowanie kwoty w zł (musi kończyć się na "zł")
+function parseZloty(input) {
+  const trimmed = input.trim();
+  const lower = trimmed.toLowerCase();
+  if (!lower.endsWith('zł') && !lower.endsWith('zl')) return null;
+  const numStr = lower.replace(/zł|zl/, '').trim().replace(',', '.');
+  const val = parseFloat(numStr);
+  if (isNaN(val) || val <= 0) return null;
+  return val;
+}
+
+// Pomocnik: parsowanie kwoty w dolarach serwerowych (musi mieć k lub m)
+function parseDolary(input) {
+  const trimmed = input.trim().toLowerCase().replace(',', '.');
+  if (trimmed.endsWith('m')) {
+    const val = parseFloat(trimmed.slice(0, -1));
+    if (isNaN(val) || val <= 0) return null;
+    return val * 1_000_000;
+  }
+  if (trimmed.endsWith('k')) {
+    const val = parseFloat(trimmed.slice(0, -1));
+    if (isNaN(val) || val <= 0) return null;
+    return val * 1_000;
+  }
+  return null;
+}
+
+// Formatowanie liczby z k/m
+function formatDolary(val) {
+  if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(2)}m`;
+  if (val >= 1_000) return `${(val / 1_000).toFixed(2)}k`;
+  return val.toFixed(2);
+}
+
+function buildSelectMenuRow(customId) {
+  const options = Object.entries(PROWIZJE).map(([value, data]) => {
+    const opt = new StringSelectMenuOptionBuilder()
       .setLabel(`${data.nazwa} — ${data.prowizja}% prowizji`)
-      .setValue(value)
-      .setEmoji(data.emoji.startsWith('<') ? { id: data.emoji.match(/\d{17,20}/)?.[0] } : { name: data.emoji })
-  );
+      .setValue(value);
+
+    // Własne emoji z ID vs unicode
+    if (data.emoji.startsWith('<')) {
+      const id = data.emoji.match(/\d{17,20}/)?.[0];
+      if (id) opt.setEmoji({ id });
+    } else {
+      opt.setEmoji({ name: data.emoji });
+    }
+    return opt;
+  });
 
   const select = new StringSelectMenuBuilder()
-    .setCustomId('kalkulator_metoda')
+    .setCustomId(customId)
     .setPlaceholder('💜 Wybierz metodę płatności...')
     .addOptions(options);
 
-  const row1 = new ActionRowBuilder().addComponents(select);
+  return new ActionRowBuilder().addComponents(select);
+}
 
-  const row2 = new ActionRowBuilder().addComponents(
+function buildKalkulatorComponents() {
+  const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('kalkulator_ile_dostane')
       .setLabel('💰 Ile dolarów serwerowych dostanę?')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId('kalkulator_ile_dac')
-      .setLabel('💸 Ile muszę dać, aby otrzymać określoną kwotę dolarów serwerowych?')
+      .setCustomId('kalkulator_ile_zaplacic')
+      .setLabel('💸 Ile zapłacić za tyle dolarów serwerowych?')
       .setStyle(ButtonStyle.Secondary)
   );
-
-  return [row1, row2];
+  return [row];
 }
 
 function buildKalkulatorEmbed() {
@@ -188,8 +234,9 @@ function buildKalkulatorEmbed() {
     .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
     .setTitle('💜 Kalkulator Prowizji — SS Shop 💜')
     .setDescription(
-      '>>> Jeżeli chcesz obliczyć **prowizję swojej wymiany**, wybierz metodę płatności z menu poniżej, a następnie kliknij odpowiedni przycisk.\n\n' +
-      '💜 **Wybierz metodę płatności** i zdecyduj, co chcesz obliczyć!'
+      '>>> Jeżeli chcesz obliczyć **prowizję swojej wymiany**, kliknij odpowiedni przycisk poniżej.\n' +
+      'Wybór metody płatności oraz wpisanie kwoty odbywa się w wyskakującym okienku — **nikt inny tego nie zobaczy!**\n\n' +
+      '💜 Kliknij przycisk i postępuj zgodnie z instrukcjami!'
     )
     .addFields(
       {
@@ -297,99 +344,135 @@ client.on('messageCreate', async message => {
 
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 
-// Tymczasowe przechowywanie wybranej metody (per user, w pamięci)
-const userSelectedMethod = new Map();
-
 client.on('interactionCreate', async interaction => {
 
-  // ─── SELECT MENU — wybór metody ────────────────────────────────────────────
-  if (interaction.isStringSelectMenu() && interaction.customId === 'kalkulator_metoda') {
-    const value = interaction.values[0];
-    userSelectedMethod.set(interaction.user.id, value);
-    const metoda = PROWIZJE[value];
-    await interaction.reply({
-      content: `💜 Wybrano: **${metoda.emoji} ${metoda.nazwa}** (\`${metoda.prowizja}%\` prowizji).\nTeraz kliknij jeden z przycisków poniżej, aby obliczyć kwotę!`,
-      ephemeral: true
-    });
-    return;
-  }
-
   // ─── BUTTON — ile dolarów dostanę ─────────────────────────────────────────
+  // Krok 1: Pokaż select menu (ephemeral) z wyborem metody
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
-    const metodaKey = userSelectedMethod.get(interaction.user.id);
-    if (!metodaKey) {
-      await interaction.reply({ content: '❌ Najpierw wybierz metodę płatności z menu!', ephemeral: true });
-      return;
-    }
-    const metoda = PROWIZJE[metodaKey];
+    const selectRow = buildSelectMenuRow('select_ile_dostane');
     await interaction.reply({
-      content:
-        `💜 **Ile dolarów serwerowych dostanę?**\n\n` +
-        `Wybrana metoda: **${metoda.emoji} ${metoda.nazwa}** (\`${metoda.prowizja}%\` prowizji)\n\n` +
-        `Podaj kwotę, którą **wysyłasz** (np. \`100\`), a ja obliczę ile dolarów serwerowych otrzymasz.\n` +
-        `✏️ Napisz kwotę w tej wiadomości (odpowiedz na ten ephemeral lub napisz na czacie).`,
+      content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:',
+      components: [selectRow],
       ephemeral: true
-    });
-
-    // Czekamy na odpowiedź użytkownika
-    const filter = m => m.author.id === interaction.user.id;
-    const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
-    collector.on('collect', async msg => {
-      const kwota = parseFloat(msg.content.replace(',', '.'));
-      if (isNaN(kwota) || kwota <= 0) {
-        await msg.reply({ content: '❌ Podaj prawidłową kwotę liczbową!', allowedMentions: { repliedUser: false } });
-        return;
-      }
-      const po_prowizji = kwota * (1 - metoda.prowizja / 100);
-      await msg.reply({
-        content:
-          `💜 **Wynik kalkulatora SS Shop:**\n\n` +
-          `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
-          `💵 Wysyłasz: **${kwota.toFixed(2)}**\n` +
-          `💸 Prowizja (\`${metoda.prowizja}%\`): **-${(kwota - po_prowizji).toFixed(2)}**\n` +
-          `💜 Dolary serwerowe, które otrzymasz: **${po_prowizji.toFixed(2)} $**`,
-        allowedMentions: { repliedUser: false }
-      });
-      try { await msg.delete().catch(() => {}); } catch {}
     });
     return;
   }
 
-  // ─── BUTTON — ile dać aby dostać określoną kwotę ─────────────────────────
-  if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dac') {
-    const metodaKey = userSelectedMethod.get(interaction.user.id);
-    if (!metodaKey) {
-      await interaction.reply({ content: '❌ Najpierw wybierz metodę płatności z menu!', ephemeral: true });
+  // Krok 2a: Wybrano metodę → pokaż modal z polem na kwotę w zł
+  if (interaction.isStringSelectMenu() && interaction.customId === 'select_ile_dostane') {
+    const metodaKey = interaction.values[0];
+    const metoda = PROWIZJE[metodaKey];
+
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_ile_dostane_${metodaKey}`)
+      .setTitle('💰 Ile dolarów serwerowych dostanę?');
+
+    const kwotaInput = new TextInputBuilder()
+      .setCustomId('kwota_zl')
+      .setLabel(`Podaj kwotę w złotych (np. 100zł, 50zł)`)
+      .setPlaceholder('Wpisz kwotę z "zł" na końcu, np. 100zł')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true)
+      .setMaxLength(20);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(kwotaInput));
+    await interaction.showModal(modal);
+    return;
+  }
+
+  // Krok 3a: Obsługa modala — ile dostanę
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_ile_dostane_')) {
+    const metodaKey = interaction.customId.replace('modal_ile_dostane_', '');
+    const metoda = PROWIZJE[metodaKey];
+    const rawInput = interaction.fields.getTextInputValue('kwota_zl');
+    const kwota = parseZloty(rawInput);
+
+    if (!kwota) {
+      await interaction.reply({
+        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`zł\` na końcu, np. \`100zł\`, \`50zł\`, \`250zł\`.\nSpróbuj ponownie!`,
+        ephemeral: true
+      });
       return;
     }
-    const metoda = PROWIZJE[metodaKey];
+
+    const po_prowizji = kwota * (1 - metoda.prowizja / 100);
+    const prowizja_kwota = kwota - po_prowizji;
+
+    const emojiDisplay = metoda.emoji.startsWith('<') ? metoda.emoji : metoda.emoji;
+
     await interaction.reply({
       content:
-        `💜 **Ile muszę dać, aby otrzymać określoną kwotę dolarów serwerowych?**\n\n` +
-        `Wybrana metoda: **${metoda.emoji} ${metoda.nazwa}** (\`${metoda.prowizja}%\` prowizji)\n\n` +
-        `Podaj kwotę dolarów serwerowych, którą **chcesz otrzymać** (np. \`100\`).`,
+        `💜 **Wynik kalkulatora SS Shop:**\n\n` +
+        `${emojiDisplay} Metoda: **${metoda.nazwa}**\n` +
+        `💵 Wysyłasz: **${kwota.toFixed(2)} zł**\n` +
+        `💸 Prowizja (\`${metoda.prowizja}%\`): **-${prowizja_kwota.toFixed(2)} zł**\n` +
+        `💜 Dolary serwerowe, które otrzymasz: **${po_prowizji.toFixed(2)} $**`,
       ephemeral: true
     });
+    return;
+  }
 
-    const filter = m => m.author.id === interaction.user.id;
-    const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
-    collector.on('collect', async msg => {
-      const kwota = parseFloat(msg.content.replace(',', '.'));
-      if (isNaN(kwota) || kwota <= 0) {
-        await msg.reply({ content: '❌ Podaj prawidłową kwotę liczbową!', allowedMentions: { repliedUser: false } });
-        return;
-      }
-      const do_wyslania = kwota / (1 - metoda.prowizja / 100);
-      await msg.reply({
-        content:
-          `💜 **Wynik kalkulatora SS Shop:**\n\n` +
-          `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
-          `💜 Chcesz otrzymać: **${kwota.toFixed(2)} $** dolarów serwerowych\n` +
-          `💸 Prowizja (\`${metoda.prowizja}%\`): **+${(do_wyslania - kwota).toFixed(2)}**\n` +
-          `💵 Musisz wysłać: **${do_wyslania.toFixed(2)}**`,
-        allowedMentions: { repliedUser: false }
+  // ─── BUTTON — ile zapłacić za tyle dolarów serwerowych ───────────────────
+  // Krok 1: Pokaż select menu (ephemeral) z wyborem metody
+  if (interaction.isButton() && interaction.customId === 'kalkulator_ile_zaplacic') {
+    const selectRow = buildSelectMenuRow('select_ile_zaplacic');
+    await interaction.reply({
+      content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:',
+      components: [selectRow],
+      ephemeral: true
+    });
+    return;
+  }
+
+  // Krok 2b: Wybrano metodę → pokaż modal z polem na kwotę w dolarach
+  if (interaction.isStringSelectMenu() && interaction.customId === 'select_ile_zaplacic') {
+    const metodaKey = interaction.values[0];
+
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_ile_zaplacic_${metodaKey}`)
+      .setTitle('💸 Ile zapłacić za tyle dolarów?');
+
+    const kwotaInput = new TextInputBuilder()
+      .setCustomId('kwota_dolary')
+      .setLabel('Podaj kwotę $ serwerowych (np. 100k, 1m, 500k)')
+      .setPlaceholder('Wpisz kwotę z "k" lub "m" na końcu, np. 100k')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true)
+      .setMaxLength(20);
+
+    modal.addComponents(new ActionRowBuilder().addComponents(kwotaInput));
+    await interaction.showModal(modal);
+    return;
+  }
+
+  // Krok 3b: Obsługa modala — ile zapłacić
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_ile_zaplacic_')) {
+    const metodaKey = interaction.customId.replace('modal_ile_zaplacic_', '');
+    const metoda = PROWIZJE[metodaKey];
+    const rawInput = interaction.fields.getTextInputValue('kwota_dolary');
+    const kwota = parseDolary(rawInput);
+
+    if (!kwota) {
+      await interaction.reply({
+        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`k\` (tysiące) lub \`m\` (miliony) na końcu, np. \`100k\`, \`1m\`, \`500k\`.\nSama liczba bez przyrostka nie jest akceptowana. Spróbuj ponownie!`,
+        ephemeral: true
       });
-      try { await msg.delete().catch(() => {}); } catch {}
+      return;
+    }
+
+    const do_wyslania = kwota / (1 - metoda.prowizja / 100);
+    const prowizja_kwota = do_wyslania - kwota;
+
+    const emojiDisplay = metoda.emoji.startsWith('<') ? metoda.emoji : metoda.emoji;
+
+    await interaction.reply({
+      content:
+        `💜 **Wynik kalkulatora SS Shop:**\n\n` +
+        `${emojiDisplay} Metoda: **${metoda.nazwa}**\n` +
+        `💜 Chcesz otrzymać: **${formatDolary(kwota)} $** dolarów serwerowych\n` +
+        `💸 Prowizja (\`${metoda.prowizja}%\`): **+${do_wyslania.toFixed(2)} zł**\n` +
+        `💵 Musisz zapłacić: **${do_wyslania.toFixed(2)} zł**`,
+      ephemeral: true
     });
     return;
   }
