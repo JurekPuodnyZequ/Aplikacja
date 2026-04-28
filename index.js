@@ -315,11 +315,7 @@ function buildBoostyEmbed() {
         name: '💎 Nagrody na trybie Anarchia',
         value: 
           '✨ **1 boost** — `50,000 $` na anarchii\n' +
-          '✨ **2 boosty** — `120,000 $` na anarchii\n' +
-          '✨ **3 boosty** — `180,000 $` na anarchii\n' +
-          '✨ **4 boosty** — `300,000 $` na anarchii\n' +
-          '✨ **5+ boostów** — `420,000 $` na anarchii\n\n' +
-          '💡 *Każdy kolejny boost powyżej 5 to dodatkowe `120,000 $` (np. 7 boostów = 660k).*',
+          '✨ **2 boosty** — `100,000 $` na anarchii',
         inline: false
       }
     )
@@ -471,11 +467,8 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Obliczenia:
-    // 1. Kwota po prowizji (to co faktycznie idzie na zakup)
     const po_prowizji_zl = kwotaZl * (1 - metoda.prowizja / 100);
     const prowizja_zl = kwotaZl - po_prowizji_zl;
-    // 2. Ile to dolarów (1 zł = 8000$)
     const dolary = po_prowizji_zl * PRZELICZNIK;
 
     const emojiDisplay = metoda.emoji.startsWith('<') ? metoda.emoji : metoda.emoji;
@@ -539,12 +532,7 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Obliczenia:
-    // 1. Ile zł potrzeba na te dolary (1 zł = 8000$)
     const bazowa_cena_zl = dolary / PRZELICZNIK;
-    // 2. Doliczamy prowizję, aby po jej odjęciu została bazowa cena
-    // Cena_z_prowizja * (1 - prowizja%) = bazowa_cena
-    // Cena_z_prowizja = bazowa_cena / (1 - prowizja%)
     const do_zaplaty_zl = bazowa_cena_zl / (1 - metoda.prowizja / 100);
     const prowizja_zl = do_zaplaty_zl - bazowa_cena_zl;
 
