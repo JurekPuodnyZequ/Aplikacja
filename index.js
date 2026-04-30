@@ -651,7 +651,7 @@ client.on('interactionCreate', async interaction => {
 
           // Rate limit — poczekaj i spróbuj ponownie
           if (status === 429 && data?.retry_after) {
-            const waitMs = Math.ceil(data.retry_after * 1000) + 300;
+            const waitMs = Math.ceil(data.retry_after) + 500;
             console.log(`⏳ Rate limit dla ${row.user_id}, czekam ${waitMs}ms...`);
             await new Promise(r => setTimeout(r, waitMs));
             attempts++;
