@@ -386,7 +386,77 @@ client.on('messageCreate', async message => {
 
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
+if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
 
+  if (interaction.user.id !== '1215343846003576872') {
+    return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
+  }
+
+  await interaction.deferReply({ flags: 64 });
+
+  const mode = interaction.options.getString('mode');
+  const roleId = interaction.options.getString('role_id');
+  const userId = interaction.options.getString('user_id');
+
+  const guild = interaction.guild;
+  if (!guild) return interaction.editReply('❌ Brak serwera.');
+
+  let added = 0;
+  let skipped = 0;
+
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+
+  async function give(member) {
+    try {
+      if (!member.roles.cache.has(roleId)) {
+        await member.roles.add(roleId);
+        added++;
+      } else {
+        skipped++;
+      }
+    } catch (e) {
+      console.log(`❌ ${member.user.tag}:`, e.message);
+    }
+  }
+
+  // ALL
+  if (mode === 'all') {
+    await guild.members.fetch({ force: true });
+
+    for (const m of guild.members.cache.values()) {
+      if (m.user.bot) continue;
+      await give(m);
+      await delay(200);
+    }
+  }
+
+  // WITHOUT ROLE
+  if (mode === 'without') {
+    await guild.members.fetch({ force: true });
+
+    for (const m of guild.members.cache.values()) {
+      if (m.user.bot) continue;
+      if (!m.roles.cache.has(roleId)) {
+        await give(m);
+      }
+      await delay(200);
+    }
+  }
+
+  // SINGLE USER
+  if (mode === 'id') {
+    if (!userId) return interaction.editReply('❌ Brak user_id');
+
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) return interaction.editReply('❌ Nie znaleziono usera');
+
+    await give(member);
+  }
+
+  return interaction.editReply(
+    `✅ Done\n➕ Added: ${added}\n⏭️ Skipped: ${skipped}`
+  );
+}
   // ── KALKULATOR: ile dostanę ────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
     await interaction.reply({
@@ -707,6 +777,30 @@ client.login(BOT_TOKEN);
 if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
+    new SlashCommandBuilder()
+  .setName('massrole')
+  .setDescription('Masowe nadawanie ról (ONLY OWNER)')
+  .addStringOption(opt =>
+    opt.setName('mode')
+      .setDescription('Tryb')
+      .setRequired(true)
+      .addChoices(
+        { name: '👥 Everyone', value: 'all' },
+        { name: '🚫 Without role', value: 'without' },
+        { name: '👤 Single user', value: 'id' }
+      )
+  )
+  .addStringOption(opt =>
+    opt.setName('role_id')
+      .setDescription('ID roli')
+      .setRequired(true)
+  )
+  .addStringOption(opt =>
+    opt.setName('user_id')
+      .setDescription('ID usera (tylko single)')
+      .setRequired(false)
+  )
+  .toJSON(),
     new SlashCommandBuilder()
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
