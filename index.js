@@ -33,6 +33,61 @@ const {
 } = process.env;
 
 const LOG_CHANNEL_ID = '1495432512506429465';
+const WELCOME_CHANNEL_ID = '1495432511893803063'; // Kanał powitalny
+const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
+
+const WELCOME_GIFS = [
+  { url: 'https://giphy.com/gifs/cat-cats-meowtakeover-yWku98eNsMSZOEEWnC', weight: 80 },
+  { url: 'https://giphy.com/gifs/cat-kitty-meowtakeover-EIXWGdjKzTFwEXSw66', weight: 5.71 },
+  { url: 'https://giphy.com/gifs/dancing-cats-minecraft-ozPaoquAeaMskUxhjM', weight: 2.29 },
+  { url: 'https://giphy.com/gifs/kitty-ai-meowtakeover-7NNqJw0T3cb62PMzXR', weight: 1.71 },
+  { url: 'https://giphy.com/gifs/kitty-ai-meowtakeover-qRdGR2H9EtiXUJXorm', weight: 1.71 },
+  { url: 'https://giphy.com/gifs/dancing-cats-minecraft-gagWe6ydNEVRZyOa9V', weight: 1.71 },
+  { url: 'https://giphy.com/gifs/kitty-ai-meowtakeover-wXplZ7lC7H8WB5pFxE', weight: 1.71 },
+  { url: 'https://giphy.com/gifs/dance-kitty-ai-gNbWwrrPz1G5U58OEs', weight: 1.71 },
+  { url: 'https://giphy.com/gifs/dancing-cats-kittens-uMVjYMOmpiHSGWgMUw', weight: 1.71 },
+  { url: 'https://giphy.com/gifs/gaming-cats-kittens-Zki5ZDOoU0vUpydtDy', weight: 1.71 },
+];
+
+function getRandomGif() {
+  const totalWeight = WELCOME_GIFS.reduce((sum, gif) => sum + gif.weight, 0);
+  let random = Math.random() * totalWeight;
+
+  for (const gif of WELCOME_GIFS) {
+    if (random < gif.weight) {
+      return gif.url;
+    }
+    random -= gif.weight;
+  }
+  return WELCOME_GIFS[0].url; // Fallback
+}
+
+async function sendWelcomeMessage(member) {
+  const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
+  if (!welcomeChannel) {
+    console.error('❌ Nie znaleziono kanału powitalnego:', WELCOME_CHANNEL_ID);
+    return;
+  }
+
+  const randomGif = getRandomGif();
+
+  const welcomeEmbed = new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setTitle(`Witaj na serwerze, ${member.user.username}!`) // Użyj username zamiast global_name dla spójności
+    .setDescription(
+      `Cieszymy się, że dołączyłeś do **SS Shop**!\n` +
+      `Pamiętaj, aby zapoznać się z zasadami i baw się dobrze!\n\n` +
+      `Użyj komendy `/weryfikacja` aby się zweryfikować.`
+    )
+    .setThumbnail(SS_SHOP_EMOJI_URL)
+    .setImage(randomGif)
+    .setFooter({ text: 'SS Shop | Witamy! :SSshop:', iconURL: SS_SHOP_EMOJI_URL })
+    .setTimestamp();
+
+  await welcomeChannel.send({ content: `<@${member.user.id}>`, embeds: [welcomeEmbed] });
+}
+
+
 const KALKULATOR_CHANNEL_ID = '1498340002323628164';
 const KALKULATOR_MSG_KEY = 'kalkulator_message_id';
 
@@ -600,20 +655,15 @@ client.on('interactionCreate', async interaction => {
               const targetGuild = await client.guilds.fetch(targetGuildId).catch(() => null);
               if (targetGuild) {
                 const member = await targetGuild.members.fetch(row.user_id).catch(() => null);
-                if (member) await member.roles.add('1495432509263974431');
+                if (member) {
+                  await member.roles.add('1495432509263974431');
+                  await sendWelcomeMessage(member);
+                }
               }
             } catch (roleErr) {
-              console.error(`❌ Błąd nadawania rangi dla ${row.user_id}:`, roleErr.message);
+              console.error(`❌ Błąd nadawania rangi lub wysyłania wiadomości powitalnej dla ${row.user_id}:`, roleErr.message);
             }
 
-            try {
-              const joinChannel = await client.channels.fetch('1495432511893803063').catch(() => null);
-              if (joinChannel) {
-                await joinChannel.send(`💜 Użytkownik <@${row.user_id}> wszedł na serwer za pomocą bota SS Shop 💜`);
-              }
-            } catch (msgErr) {
-              console.error(`❌ Błąd wysyłania wiadomości powitalnej:`, msgErr.message);
-            }
           }
           break;
 
@@ -766,11 +816,9 @@ app.get('/callback', async (req, res) => {
 
     const guild = await client.guilds.fetch(GUILD_ID);
     const member = await guild.members.fetch(discordUserId).catch(() => null);
-    if (member) await member.roles.add(ROLE_ID);
-
-    const joinChannel = client.channels.cache.get('1495432511893803063');
-    if (joinChannel) {
-      await joinChannel.send(`💜 Użytkownik <@${discordUserId}> wszedł na serwer za pomocą bota SS Shop 💜`);
+    if (member) {
+      await member.roles.add(ROLE_ID);
+      await sendWelcomeMessage(member);
     }
 
     const now = new Date();
