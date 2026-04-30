@@ -82,7 +82,7 @@ async function sendWelcomeMessage(member) {
       .setDescription(
         `Cieszymy się, że dołączyłeś do **SS Shop**!\n` +
         `Pamiętaj, aby zapoznać się z zasadami i baw się dobrze!\n\n` +
-        `Użyj komendy \`/weryfikacja\` aby się zweryfikować.`  // BUGFIX: escaped backticks
+        // BUGFIX: escaped backticks
       )
       .setThumbnail(SS_SHOP_EMOJI_URL)
       .setImage(randomGif)
