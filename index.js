@@ -38,7 +38,7 @@ const KALKULATOR_MSG_KEY = 'kalkulator_message_id';
 
 
 // ─── KONFIGURACJA PRZELICZNIKA ────────────────────────────────────────────────
-const PRZELICZNIK = 8000; // 1 zł = 8000$
+const PRZELICZNIK = 7500; // 1 zł = 7500$
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
