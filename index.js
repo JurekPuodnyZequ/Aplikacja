@@ -80,10 +80,9 @@ async function sendWelcomeMessage(member) {
       .setColor(0x6a00ff)
       .setTitle(`Witaj na serwerze, ${member.user.username}!`)
       .setDescription(
-        `Cieszymy się, że dołączyłeś do **SS Shop**!\n` +
-        `Zweryfikuj sie i kupuj!!\n\n` +
-        // BUGFIX: escaped backticks
-      )
+  `Cieszymy się, że dołączyłeś do **SS Shop**!\n` +
+  `Zweryfikuj się i kupuj!!\n\n`
+)
       .setThumbnail(randomGif)
       .setFooter({ text: 'SS Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
