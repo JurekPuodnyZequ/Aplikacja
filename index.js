@@ -94,7 +94,7 @@ async function sendWelcomeMessage(member) {
 }
 
 // ─── KONFIGURACJA ──────────────────────────────────────────────────────────────
-const PRZELICZNIK = 7500; // 1 zł = 7500$
+const PRZELICZNIK = 8000; // 1 zł = 8000$
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
