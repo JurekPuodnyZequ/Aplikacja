@@ -42,16 +42,16 @@ const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694
 
 // ─── GIFY POWITALNE ────────────────────────────────────────────────────────────
 const WELCOME_GIFS = [
-  { url: 'https://giphy.com/gifs/cat-cats-meowtakeover-yWku98eNsMSZOEEWnC',     weight: 80   },
-  { url: 'https://giphy.com/gifs/cat-kitty-meowtakeover-EIXWGdjKzTFwEXSw66',    weight: 5.71 },
-  { url: 'https://giphy.com/gifs/dancing-cats-minecraft-ozPaoquAeaMskUxhjM',     weight: 2.29 },
-  { url: 'https://giphy.com/gifs/kitty-ai-meowtakeover-7NNqJw0T3cb62PMzXR',     weight: 1.71 },
-  { url: 'https://giphy.com/gifs/kitty-ai-meowtakeover-qRdGR2H9EtiXUJXorm',     weight: 1.71 },
-  { url: 'https://giphy.com/gifs/dancing-cats-minecraft-gagWe6ydNEVRZyOa9V',     weight: 1.71 },
-  { url: 'https://giphy.com/gifs/kitty-ai-meowtakeover-wXplZ7lC7H8WB5pFxE',     weight: 1.71 },
-  { url: 'https://giphy.com/gifs/dance-kitty-ai-gNbWwrrPz1G5U58OEs',            weight: 1.71 },
-  { url: 'https://giphy.com/gifs/dancing-cats-kittens-uMVjYMOmpiHSGWgMUw',      weight: 1.71 },
-  { url: 'https://giphy.com/gifs/gaming-cats-kittens-Zki5ZDOoU0vUpydtDy',       weight: 1.71 },
+  { url: 'https://media.giphy.com/media/yWku98eNsMSZOEEWnC/giphy.gif', weight: 80 },
+  { url: 'https://media.giphy.com/media/EIXWGdjKzTFwEXSw66/giphy.gif', weight: 5.71 },
+  { url: 'https://media.giphy.com/media/ozPaoquAeaMskUxhjM/giphy.gif', weight: 2.29 },
+  { url: 'https://media.giphy.com/media/7NNqJw0T3cb62PMzXR/giphy.gif', weight: 1.71 },
+  { url: 'https://media.giphy.com/media/qRdGR2H9EtiXUJXorm/giphy.gif', weight: 1.71 },
+  { url: 'https://media.giphy.com/media/gagWe6ydNEVRZyOa9V/giphy.gif', weight: 1.71 },
+  { url: 'https://media.giphy.com/media/wXplZ7lC7H8WB5pFxE/giphy.gif', weight: 1.71 },
+  { url: 'https://media.giphy.com/media/gNbWwrrPz1G5U58OEs/giphy.gif', weight: 1.71 },
+  { url: 'https://media.giphy.com/media/uMVjYMOmpiHSGWgMUw/giphy.gif', weight: 1.71 },
+  { url: 'https://media.giphy.com/media/Zki5ZDOoU0vUpydtDy/giphy.gif', weight: 1.71 },
 ];
 
 function getRandomGif() {
