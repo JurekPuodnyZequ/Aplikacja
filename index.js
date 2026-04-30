@@ -81,11 +81,10 @@ async function sendWelcomeMessage(member) {
       .setTitle(`Witaj na serwerze, ${member.user.username}!`)
       .setDescription(
         `Cieszymy się, że dołączyłeś do **SS Shop**!\n` +
-        `Pamiętaj, aby zapoznać się z zasadami i baw się dobrze!\n\n` +
+        `Zweryfikuj sie i kupuj!!\n\n` +
         // BUGFIX: escaped backticks
       )
-      .setThumbnail(SS_SHOP_EMOJI_URL)
-      .setImage(randomGif)
+      .setThumbnail(randomGif)
       .setFooter({ text: 'SS Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
