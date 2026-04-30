@@ -403,8 +403,43 @@ if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') 
 
   let added = 0;
   let skipped = 0;
+  let processed = 0;
 
   const delay = ms => new Promise(r => setTimeout(r, ms));
+
+  const startTime = Date.now();
+
+  function formatTime(ms) {
+    const sec = Math.floor(ms / 1000);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}m ${s}s`;
+  }
+
+  function progressBar(current, total, size = 12) {
+    const percent = total ? current / total : 0;
+    const filled = Math.round(percent * size);
+    return '█'.repeat(filled) + '░'.repeat(size - filled);
+  }
+
+  let heartbeat;
+
+  async function update(total) {
+    const elapsed = Date.now() - startTime;
+    const speed = processed / (elapsed / 1000 || 1);
+    const remaining = total - processed;
+    const eta = speed > 0 ? (remaining / speed) * 1000 : 0;
+
+    await interaction.editReply(
+      `⏳ **MassRole LIVE**\n\n` +
+      `📊 ${progressBar(processed, total)}\n` +
+      `🔢 ${processed}/${total}\n\n` +
+      `➕ Dodano: ${added}\n` +
+      `⏭️ Pominięto: ${skipped}\n\n` +
+      `⚡ ${speed.toFixed(2)} users/sec\n` +
+      `⏱️ ETA: ${formatTime(eta)}`
+    );
+  }
 
   async function give(member) {
     try {
@@ -414,47 +449,40 @@ if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') 
       } else {
         skipped++;
       }
-    } catch (e) {
-      console.log(`❌ ${member.user.tag}:`, e.message);
-    }
+    } catch {}
   }
 
-  // ALL
-  if (mode === 'all') {
-    await guild.members.fetch({ force: true });
+  await guild.members.fetch({ force: true });
 
-    for (const m of guild.members.cache.values()) {
-      if (m.user.bot) continue;
-      await give(m);
-      await delay(200);
-    }
-  }
-
-  // WITHOUT ROLE
+  let members = [...guild.members.cache.values()];
   if (mode === 'without') {
-    await guild.members.fetch({ force: true });
-
-    for (const m of guild.members.cache.values()) {
-      if (m.user.bot) continue;
-      if (!m.roles.cache.has(roleId)) {
-        await give(m);
-      }
-      await delay(200);
-    }
+    members = members.filter(m => !m.roles.cache.has(roleId));
   }
 
-  // SINGLE USER
-  if (mode === 'id') {
-    if (!userId) return interaction.editReply('❌ Brak user_id');
+  const total = members.filter(m => !m.user.bot).length;
 
-    const member = await guild.members.fetch(userId).catch(() => null);
-    if (!member) return interaction.editReply('❌ Nie znaleziono usera');
+  // 🔥 HEARTBEAT (auto update co 2 sek)
+  heartbeat = setInterval(() => {
+    update(total);
+  }, 2000);
 
-    await give(member);
+  for (const m of members) {
+    if (m.user.bot) continue;
+
+    await give(m);
+    processed++;
+
+    await delay(450);
   }
+
+  clearInterval(heartbeat);
 
   return interaction.editReply(
-    `✅ Done\n➕ Added: ${added}\n⏭️ Skipped: ${skipped}`
+    `✅ **DONE MASSROLE**\n\n` +
+    `📊 ${progressBar(processed, total)}\n` +
+    `🔢 ${processed}/${total}\n` +
+    `➕ Dodano: ${added}\n` +
+    `⏭️ Pominięto: ${skipped}`
   );
 }
   // ── KALKULATOR: ile dostanę ────────────────────────────────────────────────
