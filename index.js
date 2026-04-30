@@ -454,10 +454,30 @@ if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') 
 
   await guild.members.fetch({ force: true });
 
-  let members = [...guild.members.cache.values()];
-  if (mode === 'without') {
-    members = members.filter(m => !m.roles.cache.has(roleId));
+ let members = [];
+
+if (mode === 'all') {
+  members = [...guild.members.cache.values()];
+}
+
+if (mode === 'without') {
+  members = [...guild.members.cache.values()]
+    .filter(m => !m.roles.cache.has(roleId));
+}
+
+if (mode === 'id') {
+  if (!userId) {
+    return interaction.editReply('❌ Brak user_id!');
   }
+
+  const member = await guild.members.fetch(userId).catch(() => null);
+
+  if (!member) {
+    return interaction.editReply('❌ Nie znaleziono użytkownika!');
+  }
+
+  members = [member];
+}
 
   const total = members.filter(m => !m.user.bot).length;
 
