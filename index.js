@@ -538,7 +538,6 @@ client.on('interactionCreate', async interaction => {
         '>>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n' +
         'Kliknij przycisk poniżej i się zweryfikuj!'
       )
-      .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
 
     await interaction.channel.send({
       embeds: [embed],
