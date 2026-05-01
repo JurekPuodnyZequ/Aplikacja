@@ -131,6 +131,18 @@ const pool = new Pool({
 });
 
 async function initDB() {
+  // 🔧 AUTO-NAPRAWA KOLUMN (ważne)
+await pool.query(`
+  ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_user_id TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_username TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE tickets ADD COLUMN IF NOT EXISTS legit_check_msg_id TEXT;
+`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       user_id       TEXT PRIMARY KEY,
