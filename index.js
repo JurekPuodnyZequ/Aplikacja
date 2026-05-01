@@ -39,29 +39,30 @@ const KALKULATOR_CHANNEL_ID   = '1498340002323628164';
 const KALKULATOR_MSG_KEY      = 'kalkulator_message_id';
 const TRANSFER_ROLE_ID        = '1495432509263974431';
 
-// ─── NOWE KANAŁY ──────────────────────────────────────────────────────────────
 const CENNIK_CHANNEL_ID       = '1499896166911840323';
 const CENNIK_MSG_KEY          = 'cennik_message_id';
-const TICKET_CATEGORY_ID      = '1495432511893803060'; // kanał/kategoria ticketów
-const TICKET_LOG_CHANNEL_ID   = '1495432512506429465'; // transcript logi = LOG_CHANNEL_ID
-const TICKET_PANEL_MSG_KEY    = 'ticket_panel_message_id';
-const LEGIT_CHECK_CHANNEL_ID  = '1495432512175083607'; // kanał do legit checków
+const TICKET_CATEGORY_ID      = '1495432511893803060';
+const TICKET_LOG_CHANNEL_ID   = '1495432512506429465';
+const LEGIT_CHECK_CHANNEL_ID  = '1495432512175083607';
 
 const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
-// ─── PELERYNKI — CENNIK ────────────────────────────────────────────────────────
-// Emotki serwerowe — wstaw właściwe ID po dodaniu emotek na serwer
-// Format: <:nazwa:ID> — ID pobierzesz wpisując \:emotka: na serwerze
+// ─── EMOTKI (POPRAWIONE) ───────────────────────────────────────────────────────
+// HOME:         1499901372974497973
+// MENACE:       1499901418646012056
+// PURPLE_HEART: 1499901459796590693
+// MCE:          1499901525617672322
+// COPPER:       1499901582274330675
+
 const PELERYNKI = {
-  'home cape':     { cena: 7,   emoji: '<:HOME:1499901372974497973>',           nazwaDisplay: 'Home Cape'    },
-  'copper cape':   { cena: 10,  emoji: '<:COPPER:1499901582274330675>',         nazwaDisplay: 'Copper Cape'  },
-  'menace':        { cena: 10,  emoji: '<:MENACE:1499901418646012056>',         nazwaDisplay: 'Menace'       },
-  'purple heart':  { cena: 18,  emoji: '<:PURPLE_HEART:1499901459796590693>',  nazwaDisplay: 'Purple Heart' },
-  'mce cape':      { cena: 200, emoji: '<:MCE:1499901525617672322>',            nazwaDisplay: 'MCE Cape'     },
-  'zestaw':        { cena: null, emoji: '🎁',                     nazwaDisplay: 'Zestaw'       },
+  'home cape':    { cena: 7,   emoji: '<:HOME:1499901372974497973>',          nazwaDisplay: 'Home Cape'    },
+  'copper cape':  { cena: 10,  emoji: '<:COPPER:1499901582274330675>',        nazwaDisplay: 'Copper Cape'  },
+  'menace':       { cena: 10,  emoji: '<:MENACE:1499901418646012056>',        nazwaDisplay: 'Menace'       },
+  'purple heart': { cena: 18,  emoji: '<:PURPLE_HEART:1499901459796590693>', nazwaDisplay: 'Purple Heart' },
+  'mce cape':     { cena: 200, emoji: '<:MCE:1499901525617672322>',           nazwaDisplay: 'MCE Cape'     },
+  'zestaw':       { cena: null, emoji: '🎁',                                  nazwaDisplay: 'Zestaw'       },
 };
 
-// ─── POMOCNICZA: parsuj nazwę pelerynki z inputu ───────────────────────────────
 function znajdzPelerynke(input) {
   const lower = input.trim().toLowerCase();
   for (const [key, data] of Object.entries(PELERYNKI)) {
@@ -96,17 +97,11 @@ function getRandomGif() {
   return WELCOME_GIFS[0].url;
 }
 
-// ─── WIADOMOŚĆ POWITALNA ───────────────────────────────────────────────────────
 async function sendWelcomeMessage(member) {
   try {
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
-    if (!welcomeChannel) {
-      console.error('❌ Nie znaleziono kanału powitalnego:', WELCOME_CHANNEL_ID);
-      return;
-    }
-
+    if (!welcomeChannel) return;
     const randomGif = getRandomGif();
-
     const welcomeEmbed = new EmbedBuilder()
       .setColor(0x6a00ff)
       .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
@@ -117,7 +112,6 @@ async function sendWelcomeMessage(member) {
       .setThumbnail(randomGif)
       .setFooter({ text: 'SS Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
-
     await welcomeChannel.send({ content: `<@${member.user.id}>`, embeds: [welcomeEmbed] });
   } catch (err) {
     console.error('❌ Błąd sendWelcomeMessage:', err.message);
@@ -125,7 +119,7 @@ async function sendWelcomeMessage(member) {
 }
 
 // ─── KONFIGURACJA ──────────────────────────────────────────────────────────────
-const PRZELICZNIK = 8000; // 1 zł = 8000$
+const PRZELICZNIK = 8000;
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -157,16 +151,16 @@ async function initDB() {
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS tickets (
-      ticket_id    SERIAL PRIMARY KEY,
-      channel_id   TEXT UNIQUE,
-      user_id      TEXT,
-      pelerynka    TEXT,
-      cena         TEXT,
-      status           TEXT DEFAULT 'open',
-      taken_by_user_id TEXT DEFAULT NULL,
-      taken_by_username TEXT DEFAULT NULL,
+      ticket_id          SERIAL PRIMARY KEY,
+      channel_id         TEXT UNIQUE,
+      user_id            TEXT,
+      pelerynka          TEXT,
+      cena               TEXT,
+      status             TEXT DEFAULT 'open',
+      taken_by_user_id   TEXT DEFAULT NULL,
+      taken_by_username  TEXT DEFAULT NULL,
       legit_check_msg_id TEXT,
-      created_at   TIMESTAMP DEFAULT NOW()
+      created_at         TIMESTAMP DEFAULT NOW()
     )
   `);
   console.log('✅ Baza danych gotowa!');
@@ -204,12 +198,8 @@ async function setConfig(key, value) {
 async function refreshAccessToken(userId) {
   const result = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
   if (result.rows.length === 0) return null;
-
   const user = result.rows[0];
-
-  if (user.expires_at > Date.now() + 600_000) {
-    return user.access_token;
-  }
+  if (user.expires_at > Date.now() + 600_000) return user.access_token;
 
   try {
     const tokenRes = await axios.post(
@@ -222,16 +212,13 @@ async function refreshAccessToken(userId) {
       }),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10_000 }
     );
-
     const newAccessToken  = tokenRes.data.access_token;
     const newRefreshToken = tokenRes.data.refresh_token;
     const expiresAt       = Date.now() + tokenRes.data.expires_in * 1000;
-
     await pool.query(
       `UPDATE users SET access_token=$1, refresh_token=$2, expires_at=$3 WHERE user_id=$4`,
       [newAccessToken, newRefreshToken, expiresAt, userId]
     );
-
     return newAccessToken;
   } catch (err) {
     console.error(`❌ Błąd odświeżenia tokenu dla ${userId}:`, err?.response?.data || err.message);
@@ -239,7 +226,7 @@ async function refreshAccessToken(userId) {
   }
 }
 
-// ─── KALKULATOR PROWIZJI ───────────────────────────────────────────────────────
+// ─── KALKULATOR ────────────────────────────────────────────────────────────────
 const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
   blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 2,  emoji: '<:blik:1498356421262053386>' },
@@ -294,12 +281,10 @@ function buildSelectMenuRow(customId) {
     }
     return opt;
   });
-
   const select = new StringSelectMenuBuilder()
     .setCustomId(customId)
     .setPlaceholder('💜 Wybierz metodę płatności...')
     .addOptions(options);
-
   return new ActionRowBuilder().addComponents(select);
 }
 
@@ -345,32 +330,27 @@ function buildKalkulatorEmbed() {
 async function sendOrUpdateKalkulator() {
   try {
     const channel = await client.channels.fetch(KALKULATOR_CHANNEL_ID).catch(() => null);
-    if (!channel) {
-      console.error('❌ Nie znaleziono kanału kalkulatora:', KALKULATOR_CHANNEL_ID);
-      return;
-    }
+    if (!channel) { console.error('❌ Nie znaleziono kanału kalkulatora'); return; }
     const embed      = buildKalkulatorEmbed();
     const components = buildKalkulatorComponents();
     const existingId = await getConfig(KALKULATOR_MSG_KEY);
-
     if (existingId) {
       try {
         const existing = await channel.messages.fetch(existingId);
         await existing.edit({ embeds: [embed], components });
-        console.log('✅ Wiadomość kalkulatora zaktualizowana!');
+        console.log('✅ Kalkulator zaktualizowany!');
         return;
-      } catch { /* wiadomość usunięta – wyślij nową */ }
+      } catch {}
     }
-
     const msg = await channel.send({ embeds: [embed], components });
     await setConfig(KALKULATOR_MSG_KEY, msg.id);
-    console.log('✅ Wiadomość kalkulatora wysłana!');
+    console.log('✅ Kalkulator wysłany!');
   } catch (err) {
     console.error('❌ Błąd kalkulatora:', err.message);
   }
 }
 
-// ─── CENNIK PELERYNEK ──────────────────────────────────────────────────────────
+// ─── CENNIK — POPRAWIONE EMOTKI ────────────────────────────────────────────────
 function buildCennikEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
@@ -388,11 +368,11 @@ function buildCennikEmbed() {
       {
         name: '🛒 Dostępne pelerynki',
         value:
-          `<:HOME:1499901418646012056> **Home Cape** — \`7 zł\`\n` +
+          `<:HOME:1499901372974497973> **Home Cape** — \`7 zł\`\n` +
           `<:COPPER:1499901582274330675> **Copper Cape** — \`10 zł\`\n` +
-          `<:MENACE:1499901582274330675> **Menace Cape** — \`10 zł\`\n` +
-          `<:PURPLE_HEART:1499901372974497973> **Purple Heart** — \`18 zł\`\n` +
-          `<:MCE:1499901459796590693> **MCE Cape** — \`200 zł\`\n`,
+          `<:MENACE:1499901418646012056> **Menace Cape** — \`10 zł\`\n` +
+          `<:PURPLE_HEART:1499901459796590693> **Purple Heart** — \`18 zł\`\n` +
+          `<:MCE:1499901525617672322> **MCE Cape** — \`200 zł\`\n`,
         inline: false
       },
       {
@@ -422,37 +402,30 @@ function buildCennikComponents() {
 async function sendOrUpdateCennik() {
   try {
     const channel = await client.channels.fetch(CENNIK_CHANNEL_ID).catch(() => null);
-    if (!channel) {
-      console.error('❌ Nie znaleziono kanału cennika:', CENNIK_CHANNEL_ID);
-      return;
-    }
-
+    if (!channel) { console.error('❌ Nie znaleziono kanału cennika'); return; }
     const embed      = buildCennikEmbed();
     const components = buildCennikComponents();
     const existingId = await getConfig(CENNIK_MSG_KEY);
-
     if (existingId) {
       try {
         const existing = await channel.messages.fetch(existingId);
         await existing.edit({ embeds: [embed], components });
-        console.log('✅ Wiadomość cennika zaktualizowana!');
+        console.log('✅ Cennik zaktualizowany!');
         return;
-      } catch { /* wiadomość usunięta – wyślij nową */ }
+      } catch {}
     }
-
     const msg = await channel.send({ embeds: [embed], components });
     await setConfig(CENNIK_MSG_KEY, msg.id);
-    console.log('✅ Wiadomość cennika wysłana!');
+    console.log('✅ Cennik wysłany!');
   } catch (err) {
     console.error('❌ Błąd cennika:', err.message);
   }
 }
 
-// ─── TICKET: tworzenie kanału ──────────────────────────────────────────────────
+// ─── TICKET: tworzenie ────────────────────────────────────────────────────────
 async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
   const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
 
-  // Sprawdź czy user ma już otwarty ticket
   const existing = await pool.query(
     `SELECT channel_id FROM tickets WHERE user_id = $1 AND status = 'open'`,
     [user.id]
@@ -460,21 +433,12 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
   if (existing.rows.length > 0) {
     const existingChannelId = existing.rows[0].channel_id;
     const existingChannel = await guild.channels.fetch(existingChannelId).catch(() => null);
-    if (existingChannel) {
-      return { exists: true, channelId: existingChannelId };
-    } else {
-      // Kanał nie istnieje na Discordzie, usuń z bazy danych
-      await pool.query(`DELETE FROM tickets WHERE channel_id = $1`, [existingChannelId]);
-      console.log(`Usunięto nieistniejący kanał ticketu ${existingChannelId} z bazy danych.`);
-    }
+    if (existingChannel) return { exists: true, channelId: existingChannelId };
+    await pool.query(`DELETE FROM tickets WHERE channel_id = $1`, [existingChannelId]);
   }
 
-  // Uprawnienia kanału — widzi tylko user i admini
   const permissionOverwrites = [
-    {
-      id: guild.id, // @everyone
-      deny: [PermissionsBitField.Flags.ViewChannel],
-    },
+    { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
     {
       id: user.id,
       allow: [
@@ -485,9 +449,6 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
     },
   ];
 
-  // Jeżeli masz rolę admina, dodaj ją tutaj:
-  // permissionOverwrites.push({ id: 'ADMIN_ROLE_ID', allow: [PermissionsBitField.Flags.ViewChannel, ...] });
-
   let channelOptions = {
     name: ticketName,
     type: ChannelType.GuildText,
@@ -495,16 +456,12 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
     topic: `Otwarty ticket | ${user.tag} | ${pelerynka} | ${cenaTekst}`,
   };
 
-  // Jeśli TICKET_CATEGORY_ID to kategoria — umieść kanał w niej
   try {
     const cat = await guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
-    if (cat && cat.type === ChannelType.GuildCategory) {
-      channelOptions.parent = TICKET_CATEGORY_ID;
-    }
+    if (cat && cat.type === ChannelType.GuildCategory) channelOptions.parent = TICKET_CATEGORY_ID;
   } catch {}
 
   const ticketChannel = await guild.channels.create(channelOptions);
-
   await pool.query(
     `INSERT INTO tickets (channel_id, user_id, pelerynka, cena, status) VALUES ($1,$2,$3,$4,'open')`,
     [ticketChannel.id, user.id, pelerynka, cenaTekst]
@@ -513,7 +470,7 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
   return { exists: false, channel: ticketChannel };
 }
 
-// ─── TICKET: wyślij wiadomość powitalną w kanale ───────────────────────────────
+// ─── TICKET: wiadomość powitalna ──────────────────────────────────────────────
 async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
   const embed = new EmbedBuilder()
     .setColor(0x6a00ff)
@@ -547,62 +504,54 @@ async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
   await ticketChannel.send({ content: `<@${user.id}>`, embeds: [embed], components: [actionRow] });
 }
 
-// ─── TICKET: zamknięcie i transcript ──────────────────────────────────────────
-async function closeTicket(ticketChannel, closedBy, sendTranscript = true) {
+// ─── TICKET: zamknięcie — transcript ZAWSZE wysyłany ─────────────────────────
+async function closeTicket(ticketChannel, closedBy) {
   try {
-    // Pobierz historię wiadomości (max 100)
     const messages = await ticketChannel.messages.fetch({ limit: 100 });
     const sorted   = [...messages.values()].reverse();
 
     const transcript = sorted.map(m => {
-      const time = new Date(m.createdTimestamp).toLocaleString('pl-PL');
+      const time    = new Date(m.createdTimestamp).toLocaleString('pl-PL');
       const content = m.content || (m.embeds.length > 0 ? '[Embed]' : '[Brak treści]');
       return `[${time}] ${m.author.tag}: ${content}`;
     }).join('\n');
 
-    // Pobierz dane ticketu z bazy
     const ticketData = await pool.query(
       `SELECT * FROM tickets WHERE channel_id = $1`,
       [ticketChannel.id]
     );
     const ticket = ticketData.rows[0] || {};
 
-    if (sendTranscript) {
-      // Wyślij transcript na kanał logów
-      const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID).catch(() => null);
+    // Transcript wysyłany ZAWSZE, niezależnie od statusu przejęcia
+    try {
+      const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID);
       if (logChannel) {
         const logEmbed = new EmbedBuilder()
           .setColor(0xff0000)
           .setTitle('🔒 Ticket zamknięty — Transcript')
           .addFields(
-            { name: '👤 Użytkownik',  value: `<@${ticket.user_id || 'nieznany'}>`, inline: true },
-            { name: '🛒 Pelerynka',   value: ticket.pelerynka || 'nieznana',        inline: true },
-            { name: '💵 Cena',        value: ticket.cena || 'nieznana',             inline: true },
-            { name: '🔒 Zamknął',     value: `${closedBy.tag}`,                    inline: true },
-            { name: '📅 Data',        value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+            { name: '👤 Użytkownik', value: ticket.user_id ? `<@${ticket.user_id}>` : 'nieznany',      inline: true },
+            { name: '🛒 Pelerynka',  value: ticket.pelerynka || 'nieznana',                            inline: true },
+            { name: '💵 Cena',       value: ticket.cena || 'nieznana',                                 inline: true },
+            { name: '🔒 Zamknął',    value: closedBy?.tag || closedBy?.username || 'nieznany',         inline: true },
+            { name: '📅 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,                  inline: true }
           )
           .setFooter({ text: 'SS Shop | System Ticketów 💜' })
           .setTimestamp();
 
-        // Wyślij embed + transcript jako plik tekstowy
-        const transcriptBuffer = Buffer.from(transcript, 'utf-8');
+        const transcriptBuffer = Buffer.from(transcript || '(brak wiadomości)', 'utf-8');
         await logChannel.send({
           embeds: [logEmbed],
-          files: [{
-            attachment: transcriptBuffer,
-            name: `transcript-${ticketChannel.name}.txt`
-          }]
+          files: [{ attachment: transcriptBuffer, name: `transcript-${ticketChannel.name}.txt` }]
         });
+        console.log(`✅ Transcript wysłany dla ${ticketChannel.name}`);
       }
+    } catch (logErr) {
+      console.error('❌ Błąd wysyłania transcriptu na logi:', logErr.message);
     }
 
-    // Zaktualizuj status w bazie
-    await pool.query(
-      `UPDATE tickets SET status = 'closed' WHERE channel_id = $1`,
-      [ticketChannel.id]
-    );
+    await pool.query(`UPDATE tickets SET status = 'closed' WHERE channel_id = $1`, [ticketChannel.id]);
 
-    // Usuń kanał po 5 sekundach
     await ticketChannel.send('🔒 **Ticket zostanie zamknięty za 5 sekund...**');
     await new Promise(r => setTimeout(r, 5000));
     await ticketChannel.delete().catch(() => {});
@@ -612,7 +561,7 @@ async function closeTicket(ticketChannel, closedBy, sendTranscript = true) {
   }
 }
 
-// ─── BOT ───────────────────────────────────────────────────────────────────────
+// ─── BOT ─────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -629,7 +578,7 @@ client.once('clientReady', async () => {
   await sendOrUpdateCennik();
 });
 
-// ─── ANTI-INVITE ───────────────────────────────────────────────────────────────
+// ─── ANTI-INVITE ─────────────────────────────────────────────────────────────
 const DISCORD_LINK_REGEX = /(discord\.gg\/|discord\.com\/invite\/|dsc\.gg\/)/i;
 
 client.on('messageCreate', async message => {
@@ -637,7 +586,6 @@ client.on('messageCreate', async message => {
   if (!message.guild) return;
   if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
   if (message.guild.ownerId === message.author.id) return;
-
   if (!DISCORD_LINK_REGEX.test(message.content)) return;
 
   try {
@@ -645,9 +593,7 @@ client.on('messageCreate', async message => {
     await message.author.send(
       '🚫 **Nie wysyłaj linków do żadnego discorda!**\nZa karę dostajesz przerwę na **7 dni**. Przemyśl sobie co zrobiłeś.'
     ).catch(() => {});
-
     await message.member.timeout(7 * 24 * 60 * 60 * 1000, 'Wysłanie linku do Discorda');
-
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
     if (logChannel) {
       await logChannel.send({
@@ -657,11 +603,11 @@ client.on('messageCreate', async message => {
           .setThumbnail(message.author.displayAvatarURL())
           .addFields(
             { name: '👤 Użytkownik', value: `${message.author.tag} (<@${message.author.id}>)`, inline: true },
-            { name: '🆔 ID',         value: `\`${message.author.id}\``, inline: true },
-            { name: '📝 Kanał',      value: `<#${message.channel.id}>`, inline: true },
+            { name: '🆔 ID',         value: `\`${message.author.id}\``,                         inline: true },
+            { name: '📝 Kanał',      value: `<#${message.channel.id}>`,                         inline: true },
             { name: '💬 Treść',      value: `\`\`\`${message.content.slice(0, 200)}\`\`\`` },
-            { name: '⏱️ Czas',       value: '7 dni', inline: true },
-            { name: '🕐 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+            { name: '⏱️ Czas',       value: '7 dni',                                            inline: true },
+            { name: '🕐 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,           inline: true }
           )
           .setFooter({ text: 'SS Shop | System anty-link' })]
       });
@@ -671,41 +617,63 @@ client.on('messageCreate', async message => {
   }
 });
 
-// ─── INTERAKCJE ───────────────────────────────────────────────────────────────
+// ─── LEGIT CHECK: nasłuchiwanie (POZA interactionCreate) ─────────────────────
+client.on('messageCreate', async message => {
+  if (message.author.bot) return;
+  if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
+
+  const legitCheckRegex = /\+rep <@(\d+)> (.+) (\d+) PLN/i;
+  const match = message.content.match(legitCheckRegex);
+  if (!match) return;
+
+  const takenByUserId = match[1];
+
+  const ticketData = await pool.query(
+    `SELECT * FROM tickets WHERE user_id = $1 AND taken_by_user_id = $2 AND status != 'closed' ORDER BY created_at DESC LIMIT 1`,
+    [message.author.id, takenByUserId]
+  );
+  const ticket = ticketData.rows[0];
+  if (!ticket) return;
+
+  // Usuń starą wiadomość bota z legit checkiem
+  if (ticket.legit_check_msg_id) {
+    const oldMsg = await message.channel.messages.fetch(ticket.legit_check_msg_id).catch(() => null);
+    if (oldMsg) await oldMsg.delete().catch(() => {});
+  }
+
+  const ticketChannel = await client.channels.fetch(ticket.channel_id).catch(() => null);
+  if (ticketChannel) {
+    await closeTicket(ticketChannel, message.author);
+  }
+  console.log(`✅ Klient ${message.author.username} wysłał legit check. Ticket ${ticket.channel_id} zamknięty.`);
+});
+
+// ─── INTERAKCJE ──────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
 
-  // ── MASSROLE ──────────────────────────────────────────────────────────────
+  // ── MASSROLE ────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
-
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
     }
-
     await interaction.deferReply({ flags: 64 });
-
     const mode   = interaction.options.getString('mode');
     const roleId = interaction.options.getString('role_id');
     const userId = interaction.options.getString('user_id');
-
-    const guild = interaction.guild;
+    const guild  = interaction.guild;
     if (!guild) return interaction.editReply('❌ Brak serwera.');
 
     let added = 0, skipped = 0, processed = 0;
     const delay = ms => new Promise(r => setTimeout(r, ms));
     const startTime = Date.now();
 
-    function formatTime(ms) {
-      const sec = Math.floor(ms / 1000);
-      return `${Math.floor(sec / 60)}m ${sec % 60}s`;
-    }
-
+    function formatTime(ms) { const sec = Math.floor(ms / 1000); return `${Math.floor(sec / 60)}m ${sec % 60}s`; }
     function progressBar(current, total, size = 12) {
       const filled = Math.round(total ? (current / total) * size : 0);
       return '█'.repeat(filled) + '░'.repeat(size - filled);
     }
 
     let heartbeat;
-
     async function update(total) {
       const elapsed = Date.now() - startTime;
       const speed   = processed / (elapsed / 1000 || 1);
@@ -729,7 +697,6 @@ client.on('interactionCreate', async interaction => {
     }
 
     await guild.members.fetch({ force: true });
-
     let members = [];
     if (mode === 'all')     members = [...guild.members.cache.values()];
     if (mode === 'without') members = [...guild.members.cache.values()].filter(m => !m.roles.cache.has(roleId));
@@ -742,14 +709,12 @@ client.on('interactionCreate', async interaction => {
 
     const total = members.filter(m => !m.user.bot).length;
     heartbeat = setInterval(() => update(total), 2000);
-
     for (const m of members) {
       if (m.user.bot) continue;
       await give(m);
       processed++;
       await delay(450);
     }
-
     clearInterval(heartbeat);
     return interaction.editReply(
       `✅ **DONE MASSROLE**\n\n` +
@@ -760,29 +725,17 @@ client.on('interactionCreate', async interaction => {
     );
   }
 
-  // ── KALKULATOR: ile dostanę ────────────────────────────────────────────────
+  // ── KALKULATOR: ile dostanę ────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
-    await interaction.reply({
-      content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:',
-      components: [buildSelectMenuRow('select_ile_dostane')],
-      flags: 64
-    });
+    await interaction.reply({ content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_dostane')], flags: 64 });
     return;
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'select_ile_dostane') {
     const metodaKey = interaction.values[0];
-    const modal = new ModalBuilder()
-      .setCustomId(`modal_ile_dostane_${metodaKey}`)
-      .setTitle('💰 Ile dolarów serwerowych dostanę?');
+    const modal = new ModalBuilder().setCustomId(`modal_ile_dostane_${metodaKey}`).setTitle('💰 Ile dolarów serwerowych dostanę?');
     modal.addComponents(new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('kwota_zl')
-        .setLabel('Podaj kwotę w zł (np. 10zł, 100zł)')
-        .setPlaceholder('Wpisz kwotę z "zł" na końcu, np. 10zł')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(20)
+      new TextInputBuilder().setCustomId('kwota_zl').setLabel('Podaj kwotę w zł (np. 10zł, 100zł)').setPlaceholder('Wpisz kwotę z "zł" na końcu, np. 10zł').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(20)
     ));
     await interaction.showModal(modal);
     return;
@@ -792,16 +745,13 @@ client.on('interactionCreate', async interaction => {
     const metodaKey    = interaction.customId.replace('modal_ile_dostane_', '');
     const metoda       = PROWIZJE[metodaKey];
     const kwotaZl      = parseZloty(interaction.fields.getTextInputValue('kwota_zl'));
-
     if (!kwotaZl) {
-      await interaction.reply({ content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`zł\` na końcu, np. \`10zł\`, \`50zł\`, \`100zł\`.\nSpróbuj ponownie!`, flags: 64 });
+      await interaction.reply({ content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`zł\` na końcu, np. \`10zł\`.`, flags: 64 });
       return;
     }
-
     const po_prowizji_zl = kwotaZl * (1 - metoda.prowizja / 100);
     const prowizja_zl    = kwotaZl - po_prowizji_zl;
     const dolary         = po_prowizji_zl * PRZELICZNIK;
-
     await interaction.reply({
       content:
         `💜 **Wynik kalkulatora SS Shop:**\n\n` +
@@ -814,29 +764,17 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── KALKULATOR: ile zapłacić ───────────────────────────────────────────────
+  // ── KALKULATOR: ile zapłacić ───────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_zaplacic') {
-    await interaction.reply({
-      content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:',
-      components: [buildSelectMenuRow('select_ile_zaplacic')],
-      flags: 64
-    });
+    await interaction.reply({ content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_zaplacic')], flags: 64 });
     return;
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'select_ile_zaplacic') {
     const metodaKey = interaction.values[0];
-    const modal = new ModalBuilder()
-      .setCustomId(`modal_ile_zaplacic_${metodaKey}`)
-      .setTitle('💸 Ile zapłacić za tyle dolarów?');
+    const modal = new ModalBuilder().setCustomId(`modal_ile_zaplacic_${metodaKey}`).setTitle('💸 Ile zapłacić za tyle dolarów?');
     modal.addComponents(new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('kwota_dolary')
-        .setLabel('Podaj kwotę $ (np. 80k, 800k, 1m)')
-        .setPlaceholder('Wpisz kwotę z "k" lub "m", np. 80k')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMaxLength(20)
+      new TextInputBuilder().setCustomId('kwota_dolary').setLabel('Podaj kwotę $ (np. 80k, 800k, 1m)').setPlaceholder('Wpisz kwotę z "k" lub "m", np. 80k').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(20)
     ));
     await interaction.showModal(modal);
     return;
@@ -846,16 +784,13 @@ client.on('interactionCreate', async interaction => {
     const metodaKey = interaction.customId.replace('modal_ile_zaplacic_', '');
     const metoda    = PROWIZJE[metodaKey];
     const dolary    = parseDolary(interaction.fields.getTextInputValue('kwota_dolary'));
-
     if (!dolary) {
-      await interaction.reply({ content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`k\` (tysiące) lub \`m\` (miliony) na końcu, np. \`80k\`, \`800k\`, \`1m\`.\nSpróbuj ponownie!`, flags: 64 });
+      await interaction.reply({ content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`k\` lub \`m\`, np. \`80k\`, \`1m\`.`, flags: 64 });
       return;
     }
-
     const bazowa_cena_zl = dolary / PRZELICZNIK;
     const do_zaplaty_zl  = bazowa_cena_zl / (1 - metoda.prowizja / 100);
     const prowizja_zl    = do_zaplaty_zl - bazowa_cena_zl;
-
     await interaction.reply({
       content:
         `💜 **Wynik kalkulatora SS Shop:**\n\n` +
@@ -868,12 +803,9 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── PRZYCISK: KUP PELERYNKĘ → modal ───────────────────────────────────────
+  // ── KUP PELERYNKĘ → modal ─────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kup_pelerynke') {
-    const modal = new ModalBuilder()
-      .setCustomId('modal_kup_pelerynke')
-      .setTitle('🛍️ Zakup pelerynki — SS Shop');
-
+    const modal = new ModalBuilder().setCustomId('modal_kup_pelerynke').setTitle('🛍️ Zakup pelerynki — SS Shop');
     modal.addComponents(new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('nazwa_pelerynki')
@@ -883,15 +815,14 @@ client.on('interactionCreate', async interaction => {
         .setRequired(true)
         .setMaxLength(50)
     ));
-
     await interaction.showModal(modal);
     return;
   }
 
-  // ── MODAL: zakup pelerynki — walidacja + ticket ────────────────────────────
+  // ── MODAL: zakup pelerynki ────────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'modal_kup_pelerynke') {
-    const input      = interaction.fields.getTextInputValue('nazwa_pelerynki');
-    const pelerynka  = znajdzPelerynke(input);
+    const input     = interaction.fields.getTextInputValue('nazwa_pelerynki');
+    const pelerynka = znajdzPelerynke(input);
 
     if (!pelerynka) {
       await interaction.reply({
@@ -899,56 +830,41 @@ client.on('interactionCreate', async interaction => {
           `❌ **Nie rozpoznano nazwy pelerynki!**\n\n` +
           `Musisz wpisać **pełną nazwę** jednej z pelerynek:\n` +
           `> \`Home Cape\`, \`Copper Cape\`, \`Menace\`, \`Purple Heart\`, \`MCE Cape\`\n` +
-          `> lub \`zestaw\` jeśli chcesz kupić kilka\n\n` +
-          `Spróbuj ponownie! 💜`,
+          `> lub \`zestaw\` jeśli chcesz kupić kilka\n\nSpróbuj ponownie! 💜`,
         flags: 64
       });
       return;
     }
 
-    // Przygotuj info o cenie
-    let cenaTekst;
-    let opis;
+    let cenaTekst, opis;
     if (pelerynka.key === 'zestaw') {
       cenaTekst = 'Do ustalenia (zestaw)';
-      opis =
-        `${pelerynka.emoji} Pelerynka: **Zestaw**\n` +
-        `💵 Cena: **Do ustalenia** — admin wyceni zestaw indywidualnie\n`;
+      opis = `${pelerynka.emoji} Pelerynka: **Zestaw**\n💵 Cena: **Do ustalenia**\n`;
     } else {
       cenaTekst = `${pelerynka.cena} zł`;
-      opis =
-        `${pelerynka.emoji} Pelerynka: **${pelerynka.nazwaDisplay}**\n` +
-        `💵 Cena: **${pelerynka.cena} zł**\n`;
+      opis = `${pelerynka.emoji} Pelerynka: **${pelerynka.nazwaDisplay}**\n💵 Cena: **${pelerynka.cena} zł**\n`;
     }
 
-    // Utwórz ticket
     await interaction.deferReply({ flags: 64 });
 
     const guild  = interaction.guild;
     const result = await createTicketChannel(guild, interaction.user, pelerynka.nazwaDisplay, cenaTekst);
 
     if (result.exists) {
-      await interaction.editReply({
-        content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ zakup. 💜`
-      });
+      await interaction.editReply({ content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ zakup. 💜` });
       return;
     }
 
     await sendTicketWelcome(result.channel, interaction.user, pelerynka.nazwaDisplay, cenaTekst);
-
     await interaction.editReply({
-      content:
-        `✅ **Ticket został otwarty!**\n\n` +
-        opis +
-        `\n📩 Kanał: <#${result.channel.id}>\nObsługa wkrótce się z Tobą skontaktuje 💜`
+      content: `✅ **Ticket został otwarty!**\n\n${opis}\n📩 Kanał: <#${result.channel.id}>\nObsługa wkrótce się z Tobą skontaktuje 💜`
     });
     return;
   }
 
-  // ── PRZYCISK: PRZEJMIJ TICKET ───────────────────────────────────────────────
+  // ── PRZEJMIJ TICKET ───────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'przejmij_ticket') {
-    await interaction.deferReply({ ephemeral: true });
-
+    // Pobierz dane ticketu
     const ticketData = await pool.query(
       `SELECT * FROM tickets WHERE channel_id = $1`,
       [interaction.channel.id]
@@ -956,29 +872,33 @@ client.on('interactionCreate', async interaction => {
     const ticket = ticketData.rows[0];
 
     if (!ticket) {
-      return interaction.editReply({ content: '❌ Nie znaleziono ticketu w bazie danych.' });
+      return interaction.reply({ content: '❌ Nie znaleziono ticketu w bazie danych.', flags: 64 });
     }
 
     if (ticket.taken_by_user_id) {
-      return interaction.editReply({ content: `❌ Ten ticket został już przejęty przez <@${ticket.taken_by_user_id}>.` });
+      return interaction.reply({ content: `❌ Ten ticket został już przejęty przez <@${ticket.taken_by_user_id}>.`, flags: 64 });
     }
 
-    // Zaktualizuj status ticketu w bazie danych
+    // Zaktualizuj bazę
     await pool.query(
       `UPDATE tickets SET taken_by_user_id = $1, taken_by_username = $2 WHERE channel_id = $3`,
       [interaction.user.id, interaction.user.username, interaction.channel.id]
     );
 
     // Zmień nazwę kanału
-    await interaction.channel.setName(`przejęte-${interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '')}`);
+    const newName = `przejete-${interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '')}`;
+    await interaction.channel.setName(newName).catch(() => {});
 
-    // Zmień uprawnienia kanału, aby był widoczny tylko dla przejmującego i właściciela
-    const everyoneRole = interaction.guild.roles.everyone;
-    await interaction.channel.permissionOverwrites.edit(everyoneRole, { ViewChannel: false });
-    await interaction.channel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: true });
-    await interaction.channel.permissionOverwrites.edit(ticket.user_id, { ViewChannel: true });
+    // Zaktualizuj uprawnienia
+    await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { ViewChannel: false }).catch(() => {});
+    await interaction.channel.permissionOverwrites.edit(interaction.user.id, {
+      ViewChannel: true, SendMessages: true, ReadMessageHistory: true
+    }).catch(() => {});
+    await interaction.channel.permissionOverwrites.edit(ticket.user_id, {
+      ViewChannel: true, SendMessages: true, ReadMessageHistory: true
+    }).catch(() => {});
 
-    // Zaktualizuj wiadomość z przyciskami
+    // Zaktualizuj przyciski — usuń "Przejmij", zostaw tylko "Zamknij"
     const updatedActionRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('zamknij_ticket')
@@ -986,19 +906,20 @@ client.on('interactionCreate', async interaction => {
         .setStyle(ButtonStyle.Danger)
     );
 
-    const originalMessage = await interaction.channel.messages.fetch(interaction.message.id);
-    await originalMessage.edit({
-      content: `Ticket przejęty przez <@${interaction.user.id}>.`, // Możesz dostosować tę wiadomość
+    await interaction.message.edit({
+      embeds: interaction.message.embeds,
       components: [updatedActionRow]
-    });
+    }).catch(() => {});
 
-    await interaction.editReply({ content: `✅ Przejąłeś ticket! Kanał został zmieniony na ${interaction.channel.name}.` });
+    // Odpowiedź widoczna dla wszystkich w kanale
+    await interaction.reply({
+      content: `✅ <@${interaction.user.id}> przejął ticket i zajmie się obsługą klienta! 💜`
+    });
     return;
   }
 
-  // ── PRZYCISK: ZAMKNIJ TICKET ───────────────────────────────────────────────
+  // ── ZAMKNIJ TICKET ────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'zamknij_ticket') {
-    // Tylko admin lub właściciel ticketu może zamknąć
     const ticketData = await pool.query(
       `SELECT * FROM tickets WHERE channel_id = $1`,
       [interaction.channel.id]
@@ -1007,17 +928,17 @@ client.on('interactionCreate', async interaction => {
 
     const isAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
     const isOwner = ticket && ticket.user_id === interaction.user.id;
+    const isTaker = ticket && ticket.taken_by_user_id === interaction.user.id;
 
-    if (!isAdmin && !isOwner && ticket.taken_by_user_id !== interaction.user.id) {
-      await interaction.reply({ content: '❌ Tylko admin, właściciel ticketu lub osoba, która go przejęła, może go zamknąć!', ephemeral: true });
-      return;
+    if (!isAdmin && !isOwner && !isTaker) {
+      return interaction.reply({ content: '❌ Tylko admin, właściciel ticketu lub osoba, która go przejęła, może go zamknąć!', flags: 64 });
     }
 
-    if (ticket.taken_by_user_id) {
+    // Jeśli ticket był przejęty — pokaż modal z detalami transakcji
+    if (ticket && ticket.taken_by_user_id) {
       const modal = new ModalBuilder()
         .setCustomId('modal_zamknij_ticket')
         .setTitle('🔒 Zamknij Ticket - Szczegóły transakcji');
-
       modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
@@ -1038,22 +959,20 @@ client.on('interactionCreate', async interaction => {
             .setMaxLength(50)
         )
       );
-
       await interaction.showModal(modal);
     } else {
-      // Zamknięcie bez przejmowania - bez wysyłania transkryptu
-      await interaction.deferReply({ ephemeral: true });
-      await closeTicket(interaction.channel, interaction.user, false); // Dodano parametr do pomijania transkryptu
-      await interaction.editReply({ content: '✅ Ticket został zamknięty bez przejmowania.' });
+      // Ticket nieprzejęty — zamknij od razu, transcript wysyłany zawsze
+      await interaction.deferReply({ flags: 64 });
+      await closeTicket(interaction.channel, interaction.user);
     }
     return;
   }
 
-  // ── MODAL: ZAMKNIJ TICKET — obsługa ────────────────────────────────────────
+  // ── MODAL: ZAMKNIJ TICKET ─────────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'modal_zamknij_ticket') {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 });
 
-    const kwotaWydana    = interaction.fields.getTextInputValue('kwota_wydana');
+    const kwotaWydana      = interaction.fields.getTextInputValue('kwota_wydana');
     const pelerynkaKupiona = interaction.fields.getTextInputValue('pelerynka_kupiona');
 
     const ticketData = await pool.query(
@@ -1062,14 +981,10 @@ client.on('interactionCreate', async interaction => {
     );
     const ticket = ticketData.rows[0];
 
-    if (!ticket) {
-      return interaction.editReply({ content: '❌ Nie znaleziono ticketu w bazie danych.' });
-    }
+    if (!ticket) return interaction.editReply({ content: '❌ Nie znaleziono ticketu w bazie danych.' });
 
     const legitCheckChannel = await client.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
-    if (!legitCheckChannel) {
-      return interaction.editReply({ content: '❌ Nie znaleziono kanału do legit checków.' });
-    }
+    if (!legitCheckChannel) return interaction.editReply({ content: '❌ Nie znaleziono kanału do legit checków.' });
 
     const legitCheckEmbed = new EmbedBuilder()
       .setColor(0x6a00ff)
@@ -1077,21 +992,20 @@ client.on('interactionCreate', async interaction => {
       .setDescription(
         `Witaj <@${ticket.user_id}>!\n\n` +
         `Twoja transakcja została zakończona przez <@${ticket.taken_by_user_id}>.\n` +
-        `Aby otrzymać swoją pelerynkę, wyślij legit check na ten kanał w formacie:\n` +
+        `Aby potwierdzić zakup, wyślij legit check na ten kanał w formacie:\n` +
         `\`+rep <@${ticket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN\`\n\n` +
-        `Masz na to 10 minut — po tym czasie ticket zamknie się automatycznie, a bot wyśle legit check za Ciebie.`
+        `Masz na to **10 minut** — po tym czasie bot wyśle go automatycznie.`
       )
       .addFields(
-        { name: '🛒 Pelerynka', value: pelerynkaKupiona, inline: true },
-        { name: '💵 Kwota', value: `${kwotaWydana} PLN`, inline: true },
-        { name: '👤 Obsługa', value: `<@${ticket.taken_by_user_id}>`, inline: true }
+        { name: '🛒 Pelerynka', value: pelerynkaKupiona,                inline: true },
+        { name: '💵 Kwota',     value: `${kwotaWydana} PLN`,            inline: true },
+        { name: '👤 Obsługa',   value: `<@${ticket.taken_by_user_id}>`, inline: true }
       )
       .setFooter({ text: 'SS Shop | Legit Check' })
       .setTimestamp();
 
-    const sentMessage = await legitCheckChannel.send({ embeds: [legitCheckEmbed] });
+    const sentMessage = await legitCheckChannel.send({ content: `<@${ticket.user_id}>`, embeds: [legitCheckEmbed] });
 
-    // Zapisz ID wiadomości legit check do bazy danych
     await pool.query(
       `UPDATE tickets SET legit_check_msg_id = $1 WHERE channel_id = $2`,
       [sentMessage.id, interaction.channel.id]
@@ -1099,77 +1013,41 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ content: '✅ Wysłano wiadomość z prośbą o legit check. Ticket zostanie zamknięty po 10 minutach lub po wysłaniu legit checka przez klienta.' });
 
-    // Ustaw timer na 10 minut
+    // Timer 10 minut
+    const channelIdSnapshot = interaction.channel.id;
     setTimeout(async () => {
-      const updatedTicketData = await pool.query(
-        `SELECT * FROM tickets WHERE channel_id = $1`,
-        [interaction.channel.id]
-      );
-      const updatedTicket = updatedTicketData.rows[0];
+      try {
+        const updatedTicketData = await pool.query(
+          `SELECT * FROM tickets WHERE channel_id = $1`,
+          [channelIdSnapshot]
+        );
+        const updatedTicket = updatedTicketData.rows[0];
+        if (!updatedTicket || updatedTicket.status === 'closed') return;
 
-      if (updatedTicket && updatedTicket.status !== 'closed') {
-        // Sprawdź, czy klient wysłał legit check
-        const messages = await legitCheckChannel.messages.fetch({ limit: 20 }); // Sprawdź ostatnie 20 wiadomości
-        const legitCheckSent = messages.some(msg =>
+        const recentMessages = await legitCheckChannel.messages.fetch({ limit: 50 }).catch(() => null);
+        const legitCheckSent = recentMessages && recentMessages.some(msg =>
           msg.author.id === updatedTicket.user_id &&
-          msg.content.includes(`+rep <@${updatedTicket.taken_by_user_id}>`) &&
+          msg.content.toLowerCase().includes('+rep') &&
           msg.content.includes(pelerynkaKupiona) &&
           msg.content.includes(kwotaWydana)
         );
 
         if (!legitCheckSent) {
-          // Klient nie wysłał legit checka, bot wysyła go automatycznie
-          const autoLegitCheckMessage = `+rep <@${updatedTicket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`;
-          await legitCheckChannel.send(autoLegitCheckMessage);
-          await legitCheckChannel.send(`Klient <@${updatedTicket.user_id}> nie wysłał legit checka w ciągu 10 minut. Bot wysłał go automatycznie.`);
+          await legitCheckChannel.send(`+rep <@${updatedTicket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`);
+          await legitCheckChannel.send(`⚠️ Klient <@${updatedTicket.user_id}> nie wysłał legit checka w ciągu 10 minut. Bot wysłał go automatycznie.`);
         }
-        // Zamknij ticket
-        await closeTicket(interaction.channel, client.user); // Bot zamyka ticket
+
+        const ticketCh = await client.channels.fetch(channelIdSnapshot).catch(() => null);
+        if (ticketCh) await closeTicket(ticketCh, client.user);
+      } catch (err) {
+        console.error('❌ Błąd timera legit check:', err.message);
       }
-    }, 10 * 60 * 1000); // 10 minut
+    }, 10 * 60 * 1000);
 
     return;
   }
 
-  // ── OBSŁUGA LEGIT CHECKA ───────────────────────────────────────────────────
-  client.on("messageCreate", async message => {
-    if (message.author.bot) return;
-    if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
-
-    const legitCheckRegex = /\+rep <@(\d+)> (.+) (\d+) PLN/i;
-    const match = message.content.match(legitCheckRegex);
-
-    if (match) {
-      const takenByUserId = match[1];
-      const pelerynka = match[2];
-      const kwota = match[3];
-
-      const ticketData = await pool.query(
-        `SELECT * FROM tickets WHERE user_id = $1 AND taken_by_user_id = $2 AND status != 'closed' ORDER BY created_at DESC LIMIT 1`,
-        [message.author.id, takenByUserId]
-      );
-      const ticket = ticketData.rows[0];
-
-      if (ticket) {
-        // Usuń wiadomość bota z prośbą o legit check
-        if (ticket.legit_check_msg_id) {
-          const oldLegitCheckMessage = await message.channel.messages.fetch(ticket.legit_check_msg_id).catch(() => null);
-          if (oldLegitCheckMessage) {
-            await oldLegitCheckMessage.delete();
-          }
-        }
-
-        // Zamknij ticket
-        const ticketChannel = await client.channels.fetch(ticket.channel_id).catch(() => null);
-        if (ticketChannel) {
-          await closeTicket(ticketChannel, message.author); // Użytkownik zamyka ticket
-        }
-        console.log(`✅ Klient ${message.author.username} wysłał legit check. Ticket ${ticket.channel_id} zamknięty.`);
-      }
-    }
-  });
-
-  // ── WERYFIKACJA ────────────────────────────────────────────────────────────
+  // ── WERYFIKACJA ───────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'verify') {
     const oauthUrl =
       `https://discord.com/oauth2/authorize` +
@@ -1178,20 +1056,15 @@ client.on('interactionCreate', async interaction => {
       `&response_type=code` +
       `&scope=${encodeURIComponent('identify guilds.join')}` +
       `&state=${interaction.user.id}`;
-
-    await interaction.reply({
-      content: `Kliknij link poniżej, aby się zweryfikować:\n🔗 ${oauthUrl}`,
-      flags: 64
-    });
+    await interaction.reply({ content: `Kliknij link poniżej, aby się zweryfikować:\n🔗 ${oauthUrl}`, flags: 64 });
     return;
   }
 
-  // ── KOMENDA: setup-verify ──────────────────────────────────────────────────
+  // ── KOMENDA: setup-verify ─────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
     }
-
     const embed = new EmbedBuilder()
       .setColor('#6a00ff')
       .setAuthor({
@@ -1204,27 +1077,21 @@ client.on('interactionCreate', async interaction => {
         'Kliknij przycisk poniżej, aby połączyć swoje konto i uzyskać dostęp do kanałów!'
       )
       .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
-
     await interaction.channel.send({
       embeds: [embed],
       components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('verify')
-          .setLabel('✅ Zweryfikuj się')
-          .setStyle(ButtonStyle.Success)
+        new ButtonBuilder().setCustomId('verify').setLabel('✅ Zweryfikuj się').setStyle(ButtonStyle.Success)
       )]
     });
-
     await interaction.reply({ content: '✅ Wiadomość weryfikacyjna wysłana!', flags: 64 });
     return;
   }
 
-  // ── KOMENDA: transfer ──────────────────────────────────────────────────────
+  // ── KOMENDA: transfer ─────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', flags: 64 });
     }
-
     await interaction.deferReply({ flags: 64 });
 
     const targetGuildId = interaction.options.getString('guild_id');
@@ -1247,17 +1114,11 @@ client.on('interactionCreate', async interaction => {
       users = result.rows;
     }
 
-    console.log(`🚀 Transfer: ${users.length} użytkowników → guild ${targetGuildId} (tryb: ${tryb})`);
-
     const targetGuild = await client.guilds.fetch(targetGuildId).catch(() => null);
-    if (!targetGuild) {
-      return interaction.editReply({ content: '❌ Nie znaleziono serwera docelowego! Bot musi być na tym serwerze.' });
-    }
+    if (!targetGuild) return interaction.editReply({ content: '❌ Nie znaleziono serwera docelowego!' });
 
     let success = 0, failed = 0, alreadyOnServer = 0, deauthorized = 0, notFound = 0;
-
-    const BATCH_SIZE  = 5;
-    const BATCH_DELAY = 300;
+    const BATCH_SIZE = 5, BATCH_DELAY = 300;
 
     async function addSingleUser(row) {
       let attempts = 0;
@@ -1265,48 +1126,29 @@ client.on('interactionCreate', async interaction => {
         try {
           const accessToken = await refreshAccessToken(row.user_id);
           if (!accessToken) { failed++; return; }
-
           const response = await axios.put(
             `https://discord.com/api/guilds/${targetGuildId}/members/${row.user_id}`,
             { access_token: accessToken },
             { headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' }, timeout: 10_000 }
           );
-
-          if (response.status === 204) {
-            alreadyOnServer++;
-          } else {
+          if (response.status === 204) { alreadyOnServer++; }
+          else {
             success++;
             setImmediate(async () => {
               try {
                 await new Promise(r => setTimeout(r, 1500));
                 const member = await targetGuild.members.fetch(row.user_id).catch(() => null);
-                if (member) {
-                  await member.roles.add(TRANSFER_ROLE_ID);
-                  await sendWelcomeMessage(member);
-                } else {
-                  console.warn(`⚠️ Member ${row.user_id} nie znaleziony po dodaniu`);
-                }
-              } catch (err) {
-                console.error(`❌ Błąd rangi/powitania dla ${row.user_id}:`, err.message);
-              }
+                if (member) { await member.roles.add(TRANSFER_ROLE_ID); await sendWelcomeMessage(member); }
+              } catch (err) { console.error(`❌ Błąd rangi/powitania dla ${row.user_id}:`, err.message); }
             });
           }
           return;
-
         } catch (err) {
           const status = err?.response?.status;
           const data   = err?.response?.data;
-
-          if (status === 429 && data?.retry_after) {
-            const waitMs = Math.ceil(data.retry_after) + 500;
-            await new Promise(r => setTimeout(r, waitMs));
-            attempts++;
-            continue;
-          }
+          if (status === 429 && data?.retry_after) { await new Promise(r => setTimeout(r, Math.ceil(data.retry_after) + 500)); attempts++; continue; }
           if (data?.code === 50025) { deauthorized++; return; }
           if (data?.code === 10013) { notFound++; return; }
-
-          console.error(`❌ Błąd dodawania ${row.user_id} (próba ${attempts + 1}):`, data || err.message);
           attempts++;
         }
       }
@@ -1316,32 +1158,25 @@ client.on('interactionCreate', async interaction => {
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
       const batch = users.slice(i, i + BATCH_SIZE);
       await Promise.all(batch.map(row => addSingleUser(row)));
-
-      if ((i + BATCH_SIZE) % 50 === 0) {
-        console.log(`📊 Postęp: ${Math.min(i + BATCH_SIZE, users.length)}/${users.length} | ✅ ${success} | 👥 ${alreadyOnServer} | ❌ ${failed}`);
-      }
-
-      if (i + BATCH_SIZE < users.length) {
-        await new Promise(r => setTimeout(r, BATCH_DELAY));
-      }
+      if (i + BATCH_SIZE < users.length) await new Promise(r => setTimeout(r, BATCH_DELAY));
     }
 
     await interaction.editReply({
       content:
         `✅ **Transfer zakończony!**\n` +
-        `✅ Dodano: **${success}** użytkowników\n` +
+        `✅ Dodano: **${success}**\n` +
         `👥 Już na serwerze: **${alreadyOnServer}**\n` +
         `🚫 Odautoryzowali: **${deauthorized}**\n` +
-        `👻 Nie znaleziono (usunięte konta): **${notFound}**\n` +
+        `👻 Nie znaleziono: **${notFound}**\n` +
         `❌ Inne błędy: **${failed}**`
     });
   }
 });
 
-// ─── LOGOWANIE BOTA ───────────────────────────────────────────────────────────
+// ─── LOGOWANIE ────────────────────────────────────────────────────────────────
 client.login(BOT_TOKEN);
 
-// ─── REJESTRACJA KOMEND (node index.js --setup) ───────────────────────────────
+// ─── REJESTRACJA KOMEND ───────────────────────────────────────────────────────
 if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
@@ -1359,12 +1194,10 @@ if (process.argv.includes('--setup')) {
       .addStringOption(opt => opt.setName('role_id').setDescription('ID roli').setRequired(true))
       .addStringOption(opt => opt.setName('user_id').setDescription('ID usera (tylko single)').setRequired(false))
       .toJSON(),
-
     new SlashCommandBuilder()
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
       .toJSON(),
-
     new SlashCommandBuilder()
       .setName('transfer')
       .setDescription('Przenosi użytkowników na podany serwer')
@@ -1377,17 +1210,16 @@ if (process.argv.includes('--setup')) {
             { name: 'Konkretna osoba (po ID)', value: 'id'     }
           )
       )
-      .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ile losowych osób (tylko przy trybie random)').setRequired(false))
-      .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tylko przy trybie id)').setRequired(false))
+      .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ile losowych osób (tryb random)').setRequired(false))
+      .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tryb id)').setRequired(false))
       .toJSON()
   ];
-
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
 }
 
-// ─── SERWER HTTP ───────────────────────────────────────────────────────────────
+// ─── SERWER HTTP ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send('Bot działa!'));
 
 app.get('/callback', async (req, res) => {
@@ -1456,29 +1288,22 @@ app.get('/callback', async (req, res) => {
     }
 
     return res.send(`
-      <html>
-        <head><title>Weryfikacja</title></head>
-        <body style="font-family:sans-serif;text-align:center;margin-top:100px;background:#23272a;color:#fff">
-          <h1>✅ Zweryfikowano!</h1>
-          <p>Możesz wrócić na Discord. Ranga została nadana.</p>
-        </body>
-      </html>
+      <html><head><title>Weryfikacja</title></head>
+      <body style="font-family:sans-serif;text-align:center;margin-top:100px;background:#23272a;color:#fff">
+        <h1>✅ Zweryfikowano!</h1>
+        <p>Możesz wrócić na Discord. Ranga została nadana.</p>
+      </body></html>
     `);
-
   } catch (err) {
     console.error('❌ Błąd weryfikacji:', err?.response?.data || err.message);
     return res.status(500).send(`
-      <html>
-        <head><title>Błąd</title></head>
-        <body style="font-family:sans-serif;text-align:center;margin-top:100px;background:#23272a;color:#fff">
-          <h1>❌ Wystąpił błąd</h1>
-          <p>Spróbuj ponownie lub skontaktuj się z administracją.</p>
-        </body>
-      </html>
+      <html><head><title>Błąd</title></head>
+      <body style="font-family:sans-serif;text-align:center;margin-top:100px;background:#23272a;color:#fff">
+        <h1>❌ Wystąpił błąd</h1>
+        <p>Spróbuj ponownie lub skontaktuj się z administracją.</p>
+      </body></html>
     `);
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Serwer HTTP działa na porcie ${PORT}`);
-});
+app.listen(PORT, () => { console.log(`✅ Serwer HTTP działa na porcie ${PORT}`); });
