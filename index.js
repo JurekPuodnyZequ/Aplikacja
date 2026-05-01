@@ -458,7 +458,15 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
     [user.id]
   );
   if (existing.rows.length > 0) {
-    return { exists: true, channelId: existing.rows[0].channel_id };
+    const existingChannelId = existing.rows[0].channel_id;
+    const existingChannel = await guild.channels.fetch(existingChannelId).catch(() => null);
+    if (existingChannel) {
+      return { exists: true, channelId: existingChannelId };
+    } else {
+      // Kanał nie istnieje na Discordzie, usuń z bazy danych
+      await pool.query(`DELETE FROM tickets WHERE channel_id = $1`, [existingChannelId]);
+      console.log(`Usunięto nieistniejący kanał ticketu ${existingChannelId} z bazy danych.`);
+    }
   }
 
   // Uprawnienia kanału — widzi tylko user i admini
