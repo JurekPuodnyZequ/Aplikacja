@@ -42,9 +42,10 @@ const TRANSFER_ROLE_ID        = '1495432509263974431';
 // ─── NOWE KANAŁY ──────────────────────────────────────────────────────────────
 const CENNIK_CHANNEL_ID       = '1499896166911840323';
 const CENNIK_MSG_KEY          = 'cennik_message_id';
-const TICKET_CATEGORY_ID      = '1499900059670810715'; // kanał/kategoria ticketów
+const TICKET_CATEGORY_ID      = '1495432511893803060'; // kanał/kategoria ticketów
 const TICKET_LOG_CHANNEL_ID   = '1495432512506429465'; // transcript logi = LOG_CHANNEL_ID
 const TICKET_PANEL_MSG_KEY    = 'ticket_panel_message_id';
+const LEGIT_CHECK_CHANNEL_ID  = '1495432512175083607'; // kanał do legit checków
 
 const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
@@ -52,11 +53,11 @@ const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694
 // Emotki serwerowe — wstaw właściwe ID po dodaniu emotek na serwer
 // Format: <:nazwa:ID> — ID pobierzesz wpisując \:emotka: na serwerze
 const PELERYNKI = {
-  'home cape':     { cena: 7,   emoji: '<:Homecape:0>',           nazwaDisplay: 'Home Cape'    },
-  'copper cape':   { cena: 10,  emoji: '<:CopperCape:0>',         nazwaDisplay: 'Copper Cape'  },
-  'menace':        { cena: 10,  emoji: '<:MenaceCape:0>',         nazwaDisplay: 'Menace Cape'  },
-  'purple heart':  { cena: 18,  emoji: '<:Purple_heart_cape:0>',  nazwaDisplay: 'Purple Heart' },
-  'mce cape':      { cena: 200, emoji: '<:mcecape:0>',            nazwaDisplay: 'MCE Cape'     },
+  'home cape':     { cena: 7,   emoji: '<:HOME:1499901418646012056>',           nazwaDisplay: 'Home Cape'    },
+  'copper cape':   { cena: 10,  emoji: '<:COPPER:1499901582274330675>',         nazwaDisplay: 'Copper Cape'  },
+  'menace':        { cena: 10,  emoji: '<:MENACE:1499901582274330675>',         nazwaDisplay: 'Menace'       },
+  'purple heart':  { cena: 18,  emoji: '<:PURPLE_HEART:1499901372974497973>',  nazwaDisplay: 'Purple Heart' },
+  'mce cape':      { cena: 200, emoji: '<:MCE:1499901459796590693>',            nazwaDisplay: 'MCE Cape'     },
   'zestaw':        { cena: null, emoji: '🎁',                     nazwaDisplay: 'Zestaw'       },
 };
 
@@ -161,7 +162,10 @@ async function initDB() {
       user_id      TEXT,
       pelerynka    TEXT,
       cena         TEXT,
-      status       TEXT DEFAULT 'open',
+      status           TEXT DEFAULT 'open',
+      taken_by_user_id TEXT,
+      taken_by_username TEXT,
+      legit_check_msg_id TEXT,
       created_at   TIMESTAMP DEFAULT NOW()
     )
   `);
@@ -507,29 +511,33 @@ async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
   const embed = new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '💜 SS Shop 💜 × Ticket Zakupowy',
+      name: '💜 SS Shop 💜 × Otwarty Ticket',
       iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
-    .setTitle('🛍️ Nowy ticket zakupowy')
+    .setTitle("🛍️ Nowy ticket")
     .setDescription(
       `Cześć <@${user.id}>! 💜\n\n` +
-      `Twój ticket zakupowy został otwarty. Obsługa wkrótce się z Tobą skontaktuje.\n\n` +
+      `Twój ticket został otwarty. Obsługa wkrótce się z Tobą skontaktuje.\n\n` +
       `**Zamówienie:**\n` +
       `> 🛒 Pelerynka: **${pelerynka}**\n` +
       `> 💵 Cena: **${cenaTekst}**\n\n` +
       `Proszę czekać na odpowiedź administracji 💜`
     )
-    .setFooter({ text: 'SS Shop | Ticket Zakupowy 💜' })
+    .setFooter({ text: 'SS Shop | System Ticketów 💜' })
     .setTimestamp();
 
-  const closeRow = new ActionRowBuilder().addComponents(
+  const actionRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId('zamknij_ticket')
-      .setLabel('🔒 Zamknij ticket')
+      .setCustomId("przejmij_ticket")
+      .setLabel("🤝 Przejmij")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId("zamknij_ticket")
+      .setLabel("🔒 Zamknij Ticket")
       .setStyle(ButtonStyle.Danger)
   );
 
-  await ticketChannel.send({ content: `<@${user.id}>`, embeds: [embed], components: [closeRow] });
+  await ticketChannel.send({ content: `<@${user.id}>`, embeds: [embed], components: [actionRow] });
 }
 
 // ─── TICKET: zamknięcie i transcript ──────────────────────────────────────────
@@ -928,6 +936,57 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+  // ── PRZYCISK: PRZEJMIJ TICKET ───────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'przejmij_ticket') {
+    await interaction.deferReply({ ephemeral: true });
+
+    const ticketData = await pool.query(
+      `SELECT * FROM tickets WHERE channel_id = $1`,
+      [interaction.channel.id]
+    );
+    const ticket = ticketData.rows[0];
+
+    if (!ticket) {
+      return interaction.editReply({ content: '❌ Nie znaleziono ticketu w bazie danych.' });
+    }
+
+    if (ticket.status === 'taken') {
+      return interaction.editReply({ content: '❌ Ten ticket został już przejęty przez inną osobę.' });
+    }
+
+    // Zaktualizuj status ticketu w bazie danych
+    await pool.query(
+      `UPDATE tickets SET status = 'taken', taken_by_user_id = $1, taken_by_username = $2 WHERE channel_id = $3`,
+      [interaction.user.id, interaction.user.username, interaction.channel.id]
+    );
+
+    // Zmień nazwę kanału
+    await interaction.channel.setName(`przejęte-${interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '')}`);
+
+    // Zmień uprawnienia kanału, aby był widoczny tylko dla przejmującego i właściciela
+    const everyoneRole = interaction.guild.roles.everyone;
+    await interaction.channel.permissionOverwrites.edit(everyoneRole, { ViewChannel: false });
+    await interaction.channel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: true });
+    await interaction.channel.permissionOverwrites.edit(ticket.user_id, { ViewChannel: true });
+
+    // Zaktualizuj wiadomość z przyciskami
+    const updatedActionRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('zamknij_ticket')
+        .setLabel('🔒 Zamknij Ticket')
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    const originalMessage = await interaction.channel.messages.fetch(interaction.message.id);
+    await originalMessage.edit({
+      content: `Ticket przejęty przez <@${interaction.user.id}>.`, // Możesz dostosować tę wiadomość
+      components: [updatedActionRow]
+    });
+
+    await interaction.editReply({ content: `✅ Przejąłeś ticket! Kanał został zmieniony na ${interaction.channel.name}.` });
+    return;
+  }
+
   // ── PRZYCISK: ZAMKNIJ TICKET ───────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'zamknij_ticket') {
     // Tylko admin lub właściciel ticketu może zamknąć
@@ -940,15 +999,164 @@ client.on('interactionCreate', async interaction => {
     const isAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
     const isOwner = ticket && ticket.user_id === interaction.user.id;
 
-    if (!isAdmin && !isOwner) {
-      await interaction.reply({ content: '❌ Tylko admin lub właściciel ticketu może go zamknąć!', flags: 64 });
+    if (!isAdmin && !isOwner && ticket.taken_by_user_id !== interaction.user.id) {
+      await interaction.reply({ content: '❌ Tylko admin, właściciel ticketu lub osoba, która go przejęła, może go zamknąć!', flags: 64 });
       return;
     }
 
-    await interaction.reply({ content: '🔒 Zamykam ticket i zapisuję transcript...', flags: 64 });
-    await closeTicket(interaction.channel, interaction.user);
+    if (ticket.status !== 'taken') {
+      await interaction.reply({ content: '❌ Ten ticket nie został jeszcze przejęty. Przejmij go najpierw!', flags: 64 });
+      return;
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId('modal_zamknij_ticket')
+      .setTitle('🔒 Zamknij Ticket - Szczegóły transakcji');
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('kwota_wydana')
+          .setLabel('Ile zł wydała osoba kupująca?')
+          .setPlaceholder('np. 100')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(10)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('pelerynka_kupiona')
+          .setLabel('Jaką pelerynkę kupiła?')
+          .setPlaceholder('np. Home Cape')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(50)
+      )
+    );
+
+    await interaction.showModal(modal);
     return;
   }
+
+  // ── MODAL: ZAMKNIJ TICKET — obsługa ────────────────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId === 'modal_zamknij_ticket') {
+    await interaction.deferReply({ ephemeral: true });
+
+    const kwotaWydana    = interaction.fields.getTextInputValue('kwota_wydana');
+    const pelerynkaKupiona = interaction.fields.getTextInputValue('pelerynka_kupiona');
+
+    const ticketData = await pool.query(
+      `SELECT * FROM tickets WHERE channel_id = $1`,
+      [interaction.channel.id]
+    );
+    const ticket = ticketData.rows[0];
+
+    if (!ticket) {
+      return interaction.editReply({ content: '❌ Nie znaleziono ticketu w bazie danych.' });
+    }
+
+    const legitCheckChannel = await client.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
+    if (!legitCheckChannel) {
+      return interaction.editReply({ content: '❌ Nie znaleziono kanału do legit checków.' });
+    }
+
+    const legitCheckEmbed = new EmbedBuilder()
+      .setColor(0x6a00ff)
+      .setTitle('✅ Transakcja zakończona pomyślnie!')
+      .setDescription(
+        `Witaj <@${ticket.user_id}>!\n\n` +
+        `Twoja transakcja została zakończona przez <@${ticket.taken_by_user_id}>.\n` +
+        `Aby otrzymać swoją pelerynkę, wyślij legit check na ten kanał w formacie:\n` +
+        `\`+rep <@${ticket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN\`\n\n` +
+        `Masz na to 10 minut — po tym czasie ticket zamknie się automatycznie, a bot wyśle legit check za Ciebie.`
+      )
+      .addFields(
+        { name: '🛒 Pelerynka', value: pelerynkaKupiona, inline: true },
+        { name: '💵 Kwota', value: `${kwotaWydana} PLN`, inline: true },
+        { name: '👤 Obsługa', value: `<@${ticket.taken_by_user_id}>`, inline: true }
+      )
+      .setFooter({ text: 'SS Shop | Legit Check' })
+      .setTimestamp();
+
+    const sentMessage = await legitCheckChannel.send({ embeds: [legitCheckEmbed] });
+
+    // Zapisz ID wiadomości legit check do bazy danych
+    await pool.query(
+      `UPDATE tickets SET legit_check_msg_id = $1 WHERE channel_id = $2`,
+      [sentMessage.id, interaction.channel.id]
+    );
+
+    await interaction.editReply({ content: '✅ Wysłano wiadomość z prośbą o legit check. Ticket zostanie zamknięty po 10 minutach lub po wysłaniu legit checka przez klienta.' });
+
+    // Ustaw timer na 10 minut
+    setTimeout(async () => {
+      const updatedTicketData = await pool.query(
+        `SELECT * FROM tickets WHERE channel_id = $1`,
+        [interaction.channel.id]
+      );
+      const updatedTicket = updatedTicketData.rows[0];
+
+      if (updatedTicket && updatedTicket.status !== 'closed') {
+        // Sprawdź, czy klient wysłał legit check
+        const messages = await legitCheckChannel.messages.fetch({ limit: 20 }); // Sprawdź ostatnie 20 wiadomości
+        const legitCheckSent = messages.some(msg =>
+          msg.author.id === updatedTicket.user_id &&
+          msg.content.includes(`+rep <@${updatedTicket.taken_by_user_id}>`) &&
+          msg.content.includes(pelerynkaKupiona) &&
+          msg.content.includes(kwotaWydana)
+        );
+
+        if (!legitCheckSent) {
+          // Klient nie wysłał legit checka, bot wysyła go automatycznie
+          const autoLegitCheckMessage = `+rep <@${updatedTicket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`;
+          await legitCheckChannel.send(autoLegitCheckMessage);
+          await legitCheckChannel.send(`Klient <@${updatedTicket.user_id}> nie wysłał legit checka w ciągu 10 minut. Bot wysłał go automatycznie.`);
+        }
+        // Zamknij ticket
+        await closeTicket(interaction.channel, client.user); // Bot zamyka ticket
+      }
+    }, 10 * 60 * 1000); // 10 minut
+
+    return;
+  }
+
+  // ── OBSŁUGA LEGIT CHECKA ───────────────────────────────────────────────────
+  client.on("messageCreate", async message => {
+    if (message.author.bot) return;
+    if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
+
+    const legitCheckRegex = /\+rep <@(\d+)> (.+) (\d+) PLN/i;
+    const match = message.content.match(legitCheckRegex);
+
+    if (match) {
+      const takenByUserId = match[1];
+      const pelerynka = match[2];
+      const kwota = match[3];
+
+      const ticketData = await pool.query(
+        `SELECT * FROM tickets WHERE user_id = $1 AND taken_by_user_id = $2 AND status != 'closed'`,
+        [message.author.id, takenByUserId]
+      );
+      const ticket = ticketData.rows[0];
+
+      if (ticket) {
+        // Usuń wiadomość bota z prośbą o legit check
+        if (ticket.legit_check_msg_id) {
+          const oldLegitCheckMessage = await message.channel.messages.fetch(ticket.legit_check_msg_id).catch(() => null);
+          if (oldLegitCheckMessage) {
+            await oldLegitCheckMessage.delete();
+          }
+        }
+
+        // Zamknij ticket
+        const ticketChannel = await client.channels.fetch(ticket.channel_id).catch(() => null);
+        if (ticketChannel) {
+          await closeTicket(ticketChannel, message.author); // Użytkownik zamyka ticket
+        }
+        console.log(`✅ Klient ${message.author.username} wysłał legit check. Ticket ${ticket.channel_id} zamknięty.`);
+      }
+    }
+  });
 
   // ── WERYFIKACJA ────────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'verify') {
