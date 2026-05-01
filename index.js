@@ -111,8 +111,8 @@ async function sendWelcomeMessage(member) {
       .setColor(0x6a00ff)
       .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
       .setDescription(
-        `💜Cieszymy się, że dołączyłeś do **SS Shop**!💜\n` +
-        `💜Zweryfikuj się i kupuj!💜\n\n`
+        `💜 Cieszymy się, że dołączyłeś do **SS Shop**! 💜\n` +
+        `💜 Zweryfikuj się i sprawdź naszą ofertę pelerynek! 💜\n\n`
       )
       .setThumbnail(randomGif)
       .setFooter({ text: 'SS Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
@@ -381,29 +381,28 @@ function buildCennikEmbed() {
     .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
     .setTitle('💜 Cennik Pelerynek — SS Shop 💜')
     .setDescription(
-      '>>> Poniżej znajdziesz aktualny cennik pelerynek dostępnych w **SS Shop**.\n' +
-      'Wszystkie produkty posiadają **dożywotnią gwarancję!** 💜\n\n' +
+      '>>> Poniżej znajdziesz aktualny cennik pelerynek dostępnych w **SS Shop**.\n\n' +
       '**Zestawy** ustalamy indywidualnie — napisz do nas na tickecie! 🎁'
     )
     .addFields(
       {
         name: '🛒 Dostępne pelerynki',
         value:
-          `<:Homecape:0> **Home Cape** — \`7 zł\`\n` +
-          `<:CopperCape:0> **Copper Cape** — \`10 zł\`\n` +
-          `<:MenaceCape:0> **Menace Cape** — \`10 zł\`\n` +
-          `<:Purple_heart_cape:0> **Purple Heart** — \`18 zł\`\n` +
-          `<:mcecape:0> **MCE Cape** — \`200 zł\`\n`,
+          `<:HOME:1499901418646012056> **Home Cape** — \`7 zł\`\n` +
+          `<:COPPER:1499901582274330675> **Copper Cape** — \`10 zł\`\n` +
+          `<:MENACE:1499901582274330675> **Menace Cape** — \`10 zł\`\n` +
+          `<:PURPLE_HEART:1499901372974497973> **Purple Heart** — \`18 zł\`\n` +
+          `<:MCE:1499901459796590693> **MCE Cape** — \`200 zł\`\n`,
         inline: false
       },
       {
         name: '🎁 Zestawy',
-        value: 'Zestawy pelerynek wyceniamy indywidualnie.\nZapisz się na ticket i podaj jakie pelerynki Cię interesują!',
+        value: 'Zestawy pelerynek wyceniamy indywidualnie.\nStwórz ticket i podaj, jakie pelerynki Cię interesują!',
         inline: false
       },
       {
         name: '🎫 Jak kupić?',
-        value: 'Kliknij przycisk **🛍️ Kup pelerynkę** poniżej, aby otworzyć ticket zakupowy.',
+        value: 'Kliknij przycisk **🛍️ Kup pelerynkę** poniżej, aby otworzyć ticket.',
         inline: false
       }
     )
@@ -485,7 +484,7 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
     name: ticketName,
     type: ChannelType.GuildText,
     permissionOverwrites,
-    topic: `Ticket zakupowy | ${user.tag} | ${pelerynka} | ${cenaTekst}`,
+    topic: `Otwarty ticket | ${user.tag} | ${pelerynka} | ${cenaTekst}`,
   };
 
   // Jeśli TICKET_CATEGORY_ID to kategoria — umieść kanał w niej
@@ -511,17 +510,17 @@ async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
   const embed = new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '💜 SS Shop 💜 × Otwarty Ticket',
+      name: '💜 SS Shop 💜 × Nowy Ticket',
       iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
-    .setTitle("🛍️ Nowy ticket")
+    .setTitle("🛍️ Twój ticket został otwarty")
     .setDescription(
-      `Cześć <@${user.id}>! 💜\n\n` +
-      `Twój ticket został otwarty. Obsługa wkrótce się z Tobą skontaktuje.\n\n` +
-      `**Zamówienie:**\n` +
+      `Witaj <@${user.id}>! 💜\n\n` +
+      `Dziękujemy za zainteresowanie naszą ofertą. Twój ticket został pomyślnie utworzony.\n\n` +
+      `**Szczegóły zgłoszenia:**\n` +
       `> 🛒 Pelerynka: **${pelerynka}**\n` +
       `> 💵 Cena: **${cenaTekst}**\n\n` +
-      `Proszę czekać na odpowiedź administracji 💜`
+      `Proszę cierpliwie czekać, członek naszej obsługi zaraz się Tobą zajmie! 💜`
     )
     .setFooter({ text: 'SS Shop | System Ticketów 💜' })
     .setTimestamp();
@@ -929,7 +928,7 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({
       content:
-        `✅ **Ticket zakupowy otwarty!**\n\n` +
+        `✅ **Ticket został otwarty!**\n\n` +
         opis +
         `\n📩 Kanał: <#${result.channel.id}>\nObsługa wkrótce się z Tobą skontaktuje 💜`
     });
@@ -1189,8 +1188,8 @@ client.on('interactionCreate', async interaction => {
       })
       .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
       .setDescription(
-        '>>> Aby uzyskać dostęp do serwera, musisz przejść weryfikację.\n' +
-        'Kliknij przycisk poniżej i się zweryfikuj!'
+        '>>> Aby uzyskać pełny dostęp do serwera **SS Shop**, musisz przejść proces weryfikacji.\n' +
+        'Kliknij przycisk poniżej, aby połączyć swoje konto i uzyskać dostęp do kanałów!'
       )
       .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
 
