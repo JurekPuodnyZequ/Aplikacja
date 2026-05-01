@@ -53,11 +53,11 @@ const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694
 // Emotki serwerowe — wstaw właściwe ID po dodaniu emotek na serwer
 // Format: <:nazwa:ID> — ID pobierzesz wpisując \:emotka: na serwerze
 const PELERYNKI = {
-  'home cape':     { cena: 7,   emoji: '<:HOME:1499901418646012056>',           nazwaDisplay: 'Home Cape'    },
+  'home cape':     { cena: 7,   emoji: '<:HOME:1499901372974497973>',           nazwaDisplay: 'Home Cape'    },
   'copper cape':   { cena: 10,  emoji: '<:COPPER:1499901582274330675>',         nazwaDisplay: 'Copper Cape'  },
-  'menace':        { cena: 10,  emoji: '<:MENACE:1499901582274330675>',         nazwaDisplay: 'Menace'       },
-  'purple heart':  { cena: 18,  emoji: '<:PURPLE_HEART:1499901372974497973>',  nazwaDisplay: 'Purple Heart' },
-  'mce cape':      { cena: 200, emoji: '<:MCE:1499901459796590693>',            nazwaDisplay: 'MCE Cape'     },
+  'menace':        { cena: 10,  emoji: '<:MENACE:1499901418646012056>',         nazwaDisplay: 'Menace'       },
+  'purple heart':  { cena: 18,  emoji: '<:PURPLE_HEART:1499901459796590693>',  nazwaDisplay: 'Purple Heart' },
+  'mce cape':      { cena: 200, emoji: '<:MCE:1499901525617672322>',            nazwaDisplay: 'MCE Cape'     },
   'zestaw':        { cena: null, emoji: '🎁',                     nazwaDisplay: 'Zestaw'       },
 };
 
@@ -163,8 +163,8 @@ async function initDB() {
       pelerynka    TEXT,
       cena         TEXT,
       status           TEXT DEFAULT 'open',
-      taken_by_user_id TEXT,
-      taken_by_username TEXT,
+      taken_by_user_id TEXT DEFAULT NULL,
+      taken_by_username TEXT DEFAULT NULL,
       legit_check_msg_id TEXT,
       created_at   TIMESTAMP DEFAULT NOW()
     )
@@ -540,7 +540,7 @@ async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
 }
 
 // ─── TICKET: zamknięcie i transcript ──────────────────────────────────────────
-async function closeTicket(ticketChannel, closedBy) {
+async function closeTicket(ticketChannel, closedBy, sendTranscript = true) {
   try {
     // Pobierz historię wiadomości (max 100)
     const messages = await ticketChannel.messages.fetch({ limit: 100 });
@@ -559,31 +559,33 @@ async function closeTicket(ticketChannel, closedBy) {
     );
     const ticket = ticketData.rows[0] || {};
 
-    // Wyślij transcript na kanał logów
-    const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID).catch(() => null);
-    if (logChannel) {
-      const logEmbed = new EmbedBuilder()
-        .setColor(0xff0000)
-        .setTitle('🔒 Ticket zamknięty — Transcript')
-        .addFields(
-          { name: '👤 Użytkownik',  value: `<@${ticket.user_id || 'nieznany'}>`, inline: true },
-          { name: '🛒 Pelerynka',   value: ticket.pelerynka || 'nieznana',        inline: true },
-          { name: '💵 Cena',        value: ticket.cena || 'nieznana',             inline: true },
-          { name: '🔒 Zamknął',     value: `${closedBy.tag}`,                    inline: true },
-          { name: '📅 Data',        value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
-        )
-        .setFooter({ text: 'SS Shop | System Ticketów 💜' })
-        .setTimestamp();
+    if (sendTranscript) {
+      // Wyślij transcript na kanał logów
+      const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID).catch(() => null);
+      if (logChannel) {
+        const logEmbed = new EmbedBuilder()
+          .setColor(0xff0000)
+          .setTitle('🔒 Ticket zamknięty — Transcript')
+          .addFields(
+            { name: '👤 Użytkownik',  value: `<@${ticket.user_id || 'nieznany'}>`, inline: true },
+            { name: '🛒 Pelerynka',   value: ticket.pelerynka || 'nieznana',        inline: true },
+            { name: '💵 Cena',        value: ticket.cena || 'nieznana',             inline: true },
+            { name: '🔒 Zamknął',     value: `${closedBy.tag}`,                    inline: true },
+            { name: '📅 Data',        value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+          )
+          .setFooter({ text: 'SS Shop | System Ticketów 💜' })
+          .setTimestamp();
 
-      // Wyślij embed + transcript jako plik tekstowy
-      const transcriptBuffer = Buffer.from(transcript, 'utf-8');
-      await logChannel.send({
-        embeds: [logEmbed],
-        files: [{
-          attachment: transcriptBuffer,
-          name: `transcript-${ticketChannel.name}.txt`
-        }]
-      });
+        // Wyślij embed + transcript jako plik tekstowy
+        const transcriptBuffer = Buffer.from(transcript, 'utf-8');
+        await logChannel.send({
+          embeds: [logEmbed],
+          files: [{
+            attachment: transcriptBuffer,
+            name: `transcript-${ticketChannel.name}.txt`
+          }]
+        });
+      }
     }
 
     // Zaktualizuj status w bazie
@@ -949,13 +951,13 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply({ content: '❌ Nie znaleziono ticketu w bazie danych.' });
     }
 
-    if (ticket.status === 'taken') {
-      return interaction.editReply({ content: '❌ Ten ticket został już przejęty przez inną osobę.' });
+    if (ticket.taken_by_user_id) {
+      return interaction.editReply({ content: `❌ Ten ticket został już przejęty przez <@${ticket.taken_by_user_id}>.` });
     }
 
     // Zaktualizuj status ticketu w bazie danych
     await pool.query(
-      `UPDATE tickets SET status = 'taken', taken_by_user_id = $1, taken_by_username = $2 WHERE channel_id = $3`,
+      `UPDATE tickets SET taken_by_user_id = $1, taken_by_username = $2 WHERE channel_id = $3`,
       [interaction.user.id, interaction.user.username, interaction.channel.id]
     );
 
@@ -999,41 +1001,43 @@ client.on('interactionCreate', async interaction => {
     const isOwner = ticket && ticket.user_id === interaction.user.id;
 
     if (!isAdmin && !isOwner && ticket.taken_by_user_id !== interaction.user.id) {
-      await interaction.reply({ content: '❌ Tylko admin, właściciel ticketu lub osoba, która go przejęła, może go zamknąć!', flags: 64 });
+      await interaction.reply({ content: '❌ Tylko admin, właściciel ticketu lub osoba, która go przejęła, może go zamknąć!', ephemeral: true });
       return;
     }
 
-    if (ticket.status !== 'taken') {
-      await interaction.reply({ content: '❌ Ten ticket nie został jeszcze przejęty. Przejmij go najpierw!', flags: 64 });
-      return;
+    if (ticket.taken_by_user_id) {
+      const modal = new ModalBuilder()
+        .setCustomId('modal_zamknij_ticket')
+        .setTitle('🔒 Zamknij Ticket - Szczegóły transakcji');
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('kwota_wydana')
+            .setLabel('Ile zł wydała osoba kupująca?')
+            .setPlaceholder('np. 100')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setMaxLength(10)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('pelerynka_kupiona')
+            .setLabel('Jaką pelerynkę kupiła?')
+            .setPlaceholder('np. Home Cape')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setMaxLength(50)
+        )
+      );
+
+      await interaction.showModal(modal);
+    } else {
+      // Zamknięcie bez przejmowania - bez wysyłania transkryptu
+      await interaction.deferReply({ ephemeral: true });
+      await closeTicket(interaction.channel, interaction.user, false); // Dodano parametr do pomijania transkryptu
+      await interaction.editReply({ content: '✅ Ticket został zamknięty bez przejmowania.' });
     }
-
-    const modal = new ModalBuilder()
-      .setCustomId('modal_zamknij_ticket')
-      .setTitle('🔒 Zamknij Ticket - Szczegóły transakcji');
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('kwota_wydana')
-          .setLabel('Ile zł wydała osoba kupująca?')
-          .setPlaceholder('np. 100')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setMaxLength(10)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('pelerynka_kupiona')
-          .setLabel('Jaką pelerynkę kupiła?')
-          .setPlaceholder('np. Home Cape')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setMaxLength(50)
-      )
-    );
-
-    await interaction.showModal(modal);
     return;
   }
 
@@ -1133,7 +1137,7 @@ client.on('interactionCreate', async interaction => {
       const kwota = match[3];
 
       const ticketData = await pool.query(
-        `SELECT * FROM tickets WHERE user_id = $1 AND taken_by_user_id = $2 AND status != 'closed'`,
+        `SELECT * FROM tickets WHERE user_id = $1 AND taken_by_user_id = $2 AND status != 'closed' ORDER BY created_at DESC LIMIT 1`,
         [message.author.id, takenByUserId]
       );
       const ticket = ticketData.rows[0];
