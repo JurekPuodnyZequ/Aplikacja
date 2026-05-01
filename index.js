@@ -94,7 +94,7 @@ async function sendWelcomeMessage(member) {
 }
 
 // ─── KONFIGURACJA ──────────────────────────────────────────────────────────────
-const PRZELICZNIK = 8000; // 1 zł = 8000$
+const PRZELICZNIK = 7500; // 1 zł = 7500$
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -200,7 +200,7 @@ const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
   blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 2,  emoji: '<:blik:1498356421262053386>' },
   btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 4,  emoji: '<:btc:1498356295408029807>' },
-  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 4,  emoji: '<:ltc:1498356372339818747>' },
+  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1498356372339818747>' },
   usdt:         { nazwa: 'USDT',                   prowizja: 4,  emoji: '<:usdt:1498356339053822102>' },
   usdc:         { nazwa: 'USDC',                   prowizja: 4,  emoji: '<:usdc:1498356270498054264>' },
   eth:          { nazwa: 'ETH (Ethereum)',          prowizja: 4,  emoji: '<:eth:1498008998299959397>' },
