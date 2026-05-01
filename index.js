@@ -17,7 +17,8 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  PermissionsBitField
+  PermissionsBitField,
+  ChannelType
 } = require('discord.js');
 
 const app = express();
@@ -32,13 +33,43 @@ const {
   PORT = 3000
 } = process.env;
 
-const LOG_CHANNEL_ID       = '1495432512506429465';
-const WELCOME_CHANNEL_ID   = '1495432511893803063';
-const KALKULATOR_CHANNEL_ID = '1498340002323628164';
-const KALKULATOR_MSG_KEY   = 'kalkulator_message_id';
-const TRANSFER_ROLE_ID     = '1495432509263974431';
+const LOG_CHANNEL_ID          = '1495432512506429465';
+const WELCOME_CHANNEL_ID      = '1495432511893803063';
+const KALKULATOR_CHANNEL_ID   = '1498340002323628164';
+const KALKULATOR_MSG_KEY      = 'kalkulator_message_id';
+const TRANSFER_ROLE_ID        = '1495432509263974431';
+
+// ─── NOWE KANAŁY ──────────────────────────────────────────────────────────────
+const CENNIK_CHANNEL_ID       = '1499896166911840323';
+const CENNIK_MSG_KEY          = 'cennik_message_id';
+const TICKET_CATEGORY_ID      = '1499900059670810715'; // kanał/kategoria ticketów
+const TICKET_LOG_CHANNEL_ID   = '1495432512506429465'; // transcript logi = LOG_CHANNEL_ID
+const TICKET_PANEL_MSG_KEY    = 'ticket_panel_message_id';
 
 const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
+
+// ─── PELERYNKI — CENNIK ────────────────────────────────────────────────────────
+// Emotki serwerowe — wstaw właściwe ID po dodaniu emotek na serwer
+// Format: <:nazwa:ID> — ID pobierzesz wpisując \:emotka: na serwerze
+const PELERYNKI = {
+  'home cape':     { cena: 7,   emoji: '<:Homecape:0>',           nazwaDisplay: 'Home Cape'    },
+  'copper cape':   { cena: 10,  emoji: '<:CopperCape:0>',         nazwaDisplay: 'Copper Cape'  },
+  'menace':        { cena: 10,  emoji: '<:MenaceCape:0>',         nazwaDisplay: 'Menace Cape'  },
+  'purple heart':  { cena: 18,  emoji: '<:Purple_heart_cape:0>',  nazwaDisplay: 'Purple Heart' },
+  'mce cape':      { cena: 200, emoji: '<:mcecape:0>',            nazwaDisplay: 'MCE Cape'     },
+  'zestaw':        { cena: null, emoji: '🎁',                     nazwaDisplay: 'Zestaw'       },
+};
+
+// ─── POMOCNICZA: parsuj nazwę pelerynki z inputu ───────────────────────────────
+function znajdzPelerynke(input) {
+  const lower = input.trim().toLowerCase();
+  for (const [key, data] of Object.entries(PELERYNKI)) {
+    if (lower === key || lower === data.nazwaDisplay.toLowerCase()) {
+      return { key, ...data };
+    }
+  }
+  return null;
+}
 
 // ─── GIFY POWITALNE ────────────────────────────────────────────────────────────
 const WELCOME_GIFS = [
@@ -65,7 +96,6 @@ function getRandomGif() {
 }
 
 // ─── WIADOMOŚĆ POWITALNA ───────────────────────────────────────────────────────
-// BUGFIX: używamy \` zamiast ` wewnątrz template stringa dla /weryfikacja
 async function sendWelcomeMessage(member) {
   try {
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
@@ -80,9 +110,9 @@ async function sendWelcomeMessage(member) {
       .setColor(0x6a00ff)
       .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
       .setDescription(
-  `💜Cieszymy się, że dołączyłeś do **SS Shop**!💜\n` +
-  `💜Zweryfikuj się i kupuj!💜\n\n`
-)
+        `💜Cieszymy się, że dołączyłeś do **SS Shop**!💜\n` +
+        `💜Zweryfikuj się i kupuj!💜\n\n`
+      )
       .setThumbnail(randomGif)
       .setFooter({ text: 'SS Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
@@ -100,7 +130,7 @@ const PRZELICZNIK = 8000; // 1 zł = 8000$
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:ooqqGeeYDMypYAkQVxqJTNBstkLreIzr@postgres.railway.internal:5432/railway',
   ssl: false,
-  max: 20,            // max połączeń w puli — przyspiesza transfer
+  max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
@@ -122,6 +152,17 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS bot_config (
       key   TEXT PRIMARY KEY,
       value TEXT
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tickets (
+      ticket_id    SERIAL PRIMARY KEY,
+      channel_id   TEXT UNIQUE,
+      user_id      TEXT,
+      pelerynka    TEXT,
+      cena         TEXT,
+      status       TEXT DEFAULT 'open',
+      created_at   TIMESTAMP DEFAULT NOW()
     )
   `);
   console.log('✅ Baza danych gotowa!');
@@ -162,7 +203,6 @@ async function refreshAccessToken(userId) {
 
   const user = result.rows[0];
 
-  // Token ważny jeszcze ponad 10 minut — zwróć go od razu
   if (user.expires_at > Date.now() + 600_000) {
     return user.access_token;
   }
@@ -326,6 +366,235 @@ async function sendOrUpdateKalkulator() {
   }
 }
 
+// ─── CENNIK PELERYNEK ──────────────────────────────────────────────────────────
+function buildCennikEmbed() {
+  return new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setAuthor({
+      name: '💜 SS Shop 💜 × Cennik Pelerynek',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+    })
+    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setTitle('💜 Cennik Pelerynek — SS Shop 💜')
+    .setDescription(
+      '>>> Poniżej znajdziesz aktualny cennik pelerynek dostępnych w **SS Shop**.\n' +
+      'Wszystkie produkty posiadają **dożywotnią gwarancję!** 💜\n\n' +
+      '**Zestawy** ustalamy indywidualnie — napisz do nas na tickecie! 🎁'
+    )
+    .addFields(
+      {
+        name: '🛒 Dostępne pelerynki',
+        value:
+          `<:Homecape:0> **Home Cape** — \`7 zł\`\n` +
+          `<:CopperCape:0> **Copper Cape** — \`10 zł\`\n` +
+          `<:MenaceCape:0> **Menace Cape** — \`10 zł\`\n` +
+          `<:Purple_heart_cape:0> **Purple Heart** — \`18 zł\`\n` +
+          `<:mcecape:0> **MCE Cape** — \`200 zł\`\n`,
+        inline: false
+      },
+      {
+        name: '🎁 Zestawy',
+        value: 'Zestawy pelerynek wyceniamy indywidualnie.\nZapisz się na ticket i podaj jakie pelerynki Cię interesują!',
+        inline: false
+      },
+      {
+        name: '🎫 Jak kupić?',
+        value: 'Kliknij przycisk **🛍️ Kup pelerynkę** poniżej, aby otworzyć ticket zakupowy.',
+        inline: false
+      }
+    )
+    .setFooter({ text: 'SS Shop | Cennik Pelerynek 💜' })
+    .setTimestamp();
+}
+
+function buildCennikComponents() {
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('kup_pelerynke')
+      .setLabel('🛍️ Kup pelerynkę')
+      .setStyle(ButtonStyle.Primary),
+  )];
+}
+
+async function sendOrUpdateCennik() {
+  try {
+    const channel = await client.channels.fetch(CENNIK_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+      console.error('❌ Nie znaleziono kanału cennika:', CENNIK_CHANNEL_ID);
+      return;
+    }
+
+    const embed      = buildCennikEmbed();
+    const components = buildCennikComponents();
+    const existingId = await getConfig(CENNIK_MSG_KEY);
+
+    if (existingId) {
+      try {
+        const existing = await channel.messages.fetch(existingId);
+        await existing.edit({ embeds: [embed], components });
+        console.log('✅ Wiadomość cennika zaktualizowana!');
+        return;
+      } catch { /* wiadomość usunięta – wyślij nową */ }
+    }
+
+    const msg = await channel.send({ embeds: [embed], components });
+    await setConfig(CENNIK_MSG_KEY, msg.id);
+    console.log('✅ Wiadomość cennika wysłana!');
+  } catch (err) {
+    console.error('❌ Błąd cennika:', err.message);
+  }
+}
+
+// ─── TICKET: tworzenie kanału ──────────────────────────────────────────────────
+async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
+  const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
+
+  // Sprawdź czy user ma już otwarty ticket
+  const existing = await pool.query(
+    `SELECT channel_id FROM tickets WHERE user_id = $1 AND status = 'open'`,
+    [user.id]
+  );
+  if (existing.rows.length > 0) {
+    return { exists: true, channelId: existing.rows[0].channel_id };
+  }
+
+  // Uprawnienia kanału — widzi tylko user i admini
+  const permissionOverwrites = [
+    {
+      id: guild.id, // @everyone
+      deny: [PermissionsBitField.Flags.ViewChannel],
+    },
+    {
+      id: user.id,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory,
+      ],
+    },
+  ];
+
+  // Jeżeli masz rolę admina, dodaj ją tutaj:
+  // permissionOverwrites.push({ id: 'ADMIN_ROLE_ID', allow: [PermissionsBitField.Flags.ViewChannel, ...] });
+
+  let channelOptions = {
+    name: ticketName,
+    type: ChannelType.GuildText,
+    permissionOverwrites,
+    topic: `Ticket zakupowy | ${user.tag} | ${pelerynka} | ${cenaTekst}`,
+  };
+
+  // Jeśli TICKET_CATEGORY_ID to kategoria — umieść kanał w niej
+  try {
+    const cat = await guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
+    if (cat && cat.type === ChannelType.GuildCategory) {
+      channelOptions.parent = TICKET_CATEGORY_ID;
+    }
+  } catch {}
+
+  const ticketChannel = await guild.channels.create(channelOptions);
+
+  await pool.query(
+    `INSERT INTO tickets (channel_id, user_id, pelerynka, cena, status) VALUES ($1,$2,$3,$4,'open')`,
+    [ticketChannel.id, user.id, pelerynka, cenaTekst]
+  );
+
+  return { exists: false, channel: ticketChannel };
+}
+
+// ─── TICKET: wyślij wiadomość powitalną w kanale ───────────────────────────────
+async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
+  const embed = new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setAuthor({
+      name: '💜 SS Shop 💜 × Ticket Zakupowy',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+    })
+    .setTitle('🛍️ Nowy ticket zakupowy')
+    .setDescription(
+      `Cześć <@${user.id}>! 💜\n\n` +
+      `Twój ticket zakupowy został otwarty. Obsługa wkrótce się z Tobą skontaktuje.\n\n` +
+      `**Zamówienie:**\n` +
+      `> 🛒 Pelerynka: **${pelerynka}**\n` +
+      `> 💵 Cena: **${cenaTekst}**\n\n` +
+      `Proszę czekać na odpowiedź administracji 💜`
+    )
+    .setFooter({ text: 'SS Shop | Ticket Zakupowy 💜' })
+    .setTimestamp();
+
+  const closeRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('zamknij_ticket')
+      .setLabel('🔒 Zamknij ticket')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  await ticketChannel.send({ content: `<@${user.id}>`, embeds: [embed], components: [closeRow] });
+}
+
+// ─── TICKET: zamknięcie i transcript ──────────────────────────────────────────
+async function closeTicket(ticketChannel, closedBy) {
+  try {
+    // Pobierz historię wiadomości (max 100)
+    const messages = await ticketChannel.messages.fetch({ limit: 100 });
+    const sorted   = [...messages.values()].reverse();
+
+    const transcript = sorted.map(m => {
+      const time = new Date(m.createdTimestamp).toLocaleString('pl-PL');
+      const content = m.content || (m.embeds.length > 0 ? '[Embed]' : '[Brak treści]');
+      return `[${time}] ${m.author.tag}: ${content}`;
+    }).join('\n');
+
+    // Pobierz dane ticketu z bazy
+    const ticketData = await pool.query(
+      `SELECT * FROM tickets WHERE channel_id = $1`,
+      [ticketChannel.id]
+    );
+    const ticket = ticketData.rows[0] || {};
+
+    // Wyślij transcript na kanał logów
+    const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID).catch(() => null);
+    if (logChannel) {
+      const logEmbed = new EmbedBuilder()
+        .setColor(0xff0000)
+        .setTitle('🔒 Ticket zamknięty — Transcript')
+        .addFields(
+          { name: '👤 Użytkownik',  value: `<@${ticket.user_id || 'nieznany'}>`, inline: true },
+          { name: '🛒 Pelerynka',   value: ticket.pelerynka || 'nieznana',        inline: true },
+          { name: '💵 Cena',        value: ticket.cena || 'nieznana',             inline: true },
+          { name: '🔒 Zamknął',     value: `${closedBy.tag}`,                    inline: true },
+          { name: '📅 Data',        value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
+        )
+        .setFooter({ text: 'SS Shop | System Ticketów 💜' })
+        .setTimestamp();
+
+      // Wyślij embed + transcript jako plik tekstowy
+      const transcriptBuffer = Buffer.from(transcript, 'utf-8');
+      await logChannel.send({
+        embeds: [logEmbed],
+        files: [{
+          attachment: transcriptBuffer,
+          name: `transcript-${ticketChannel.name}.txt`
+        }]
+      });
+    }
+
+    // Zaktualizuj status w bazie
+    await pool.query(
+      `UPDATE tickets SET status = 'closed' WHERE channel_id = $1`,
+      [ticketChannel.id]
+    );
+
+    // Usuń kanał po 5 sekundach
+    await ticketChannel.send('🔒 **Ticket zostanie zamknięty za 5 sekund...**');
+    await new Promise(r => setTimeout(r, 5000));
+    await ticketChannel.delete().catch(() => {});
+
+  } catch (err) {
+    console.error('❌ Błąd zamykania ticketu:', err.message);
+  }
+}
+
 // ─── BOT ───────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -336,10 +605,11 @@ const client = new Client({
   ]
 });
 
-client.once('clientReady', async () => {   // BUGFIX: 'clientReady' zamiast przestarzałego 'ready'
+client.once('clientReady', async () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
   await initDB();
   await sendOrUpdateKalkulator();
+  await sendOrUpdateCennik();
 });
 
 // ─── ANTI-INVITE ───────────────────────────────────────────────────────────────
@@ -386,131 +656,99 @@ client.on('messageCreate', async message => {
 
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
-if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
 
-  if (interaction.user.id !== '1215343846003576872') {
-    return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
-  }
+  // ── MASSROLE ──────────────────────────────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
 
-  await interaction.deferReply({ flags: 64 });
+    if (interaction.user.id !== '1215343846003576872') {
+      return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
+    }
 
-  const mode = interaction.options.getString('mode');
-  const roleId = interaction.options.getString('role_id');
-  const userId = interaction.options.getString('user_id');
+    await interaction.deferReply({ flags: 64 });
 
-  const guild = interaction.guild;
-  if (!guild) return interaction.editReply('❌ Brak serwera.');
+    const mode   = interaction.options.getString('mode');
+    const roleId = interaction.options.getString('role_id');
+    const userId = interaction.options.getString('user_id');
 
-  let added = 0;
-  let skipped = 0;
-  let processed = 0;
+    const guild = interaction.guild;
+    if (!guild) return interaction.editReply('❌ Brak serwera.');
 
-  const delay = ms => new Promise(r => setTimeout(r, ms));
+    let added = 0, skipped = 0, processed = 0;
+    const delay = ms => new Promise(r => setTimeout(r, ms));
+    const startTime = Date.now();
 
-  const startTime = Date.now();
+    function formatTime(ms) {
+      const sec = Math.floor(ms / 1000);
+      return `${Math.floor(sec / 60)}m ${sec % 60}s`;
+    }
 
-  function formatTime(ms) {
-    const sec = Math.floor(ms / 1000);
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}m ${s}s`;
-  }
+    function progressBar(current, total, size = 12) {
+      const filled = Math.round(total ? (current / total) * size : 0);
+      return '█'.repeat(filled) + '░'.repeat(size - filled);
+    }
 
-  function progressBar(current, total, size = 12) {
-    const percent = total ? current / total : 0;
-    const filled = Math.round(percent * size);
-    return '█'.repeat(filled) + '░'.repeat(size - filled);
-  }
+    let heartbeat;
 
-  let heartbeat;
+    async function update(total) {
+      const elapsed = Date.now() - startTime;
+      const speed   = processed / (elapsed / 1000 || 1);
+      const eta     = speed > 0 ? ((total - processed) / speed) * 1000 : 0;
+      await interaction.editReply(
+        `⏳ **MassRole LIVE**\n\n` +
+        `📊 ${progressBar(processed, total)}\n` +
+        `🔢 ${processed}/${total}\n\n` +
+        `➕ Dodano: ${added}\n` +
+        `⏭️ Pominięto: ${skipped}\n\n` +
+        `⚡ ${speed.toFixed(2)} users/sec\n` +
+        `⏱️ ETA: ${formatTime(eta)}`
+      );
+    }
 
-  async function update(total) {
-    const elapsed = Date.now() - startTime;
-    const speed = processed / (elapsed / 1000 || 1);
-    const remaining = total - processed;
-    const eta = speed > 0 ? (remaining / speed) * 1000 : 0;
+    async function give(member) {
+      try {
+        if (!member.roles.cache.has(roleId)) { await member.roles.add(roleId); added++; }
+        else skipped++;
+      } catch {}
+    }
 
-    await interaction.editReply(
-      `⏳ **MassRole LIVE**\n\n` +
+    await guild.members.fetch({ force: true });
+
+    let members = [];
+    if (mode === 'all')     members = [...guild.members.cache.values()];
+    if (mode === 'without') members = [...guild.members.cache.values()].filter(m => !m.roles.cache.has(roleId));
+    if (mode === 'id') {
+      if (!userId) return interaction.editReply('❌ Brak user_id!');
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (!member) return interaction.editReply('❌ Nie znaleziono użytkownika!');
+      members = [member];
+    }
+
+    const total = members.filter(m => !m.user.bot).length;
+    heartbeat = setInterval(() => update(total), 2000);
+
+    for (const m of members) {
+      if (m.user.bot) continue;
+      await give(m);
+      processed++;
+      await delay(450);
+    }
+
+    clearInterval(heartbeat);
+    return interaction.editReply(
+      `✅ **DONE MASSROLE**\n\n` +
       `📊 ${progressBar(processed, total)}\n` +
-      `🔢 ${processed}/${total}\n\n` +
+      `🔢 ${processed}/${total}\n` +
       `➕ Dodano: ${added}\n` +
-      `⏭️ Pominięto: ${skipped}\n\n` +
-      `⚡ ${speed.toFixed(2)} users/sec\n` +
-      `⏱️ ETA: ${formatTime(eta)}`
+      `⏭️ Pominięto: ${skipped}`
     );
   }
 
-  async function give(member) {
-    try {
-      if (!member.roles.cache.has(roleId)) {
-        await member.roles.add(roleId);
-        added++;
-      } else {
-        skipped++;
-      }
-    } catch {}
-  }
-
-  await guild.members.fetch({ force: true });
-
- let members = [];
-
-if (mode === 'all') {
-  members = [...guild.members.cache.values()];
-}
-
-if (mode === 'without') {
-  members = [...guild.members.cache.values()]
-    .filter(m => !m.roles.cache.has(roleId));
-}
-
-if (mode === 'id') {
-  if (!userId) {
-    return interaction.editReply('❌ Brak user_id!');
-  }
-
-  const member = await guild.members.fetch(userId).catch(() => null);
-
-  if (!member) {
-    return interaction.editReply('❌ Nie znaleziono użytkownika!');
-  }
-
-  members = [member];
-}
-
-  const total = members.filter(m => !m.user.bot).length;
-
-  // 🔥 HEARTBEAT (auto update co 2 sek)
-  heartbeat = setInterval(() => {
-    update(total);
-  }, 2000);
-
-  for (const m of members) {
-    if (m.user.bot) continue;
-
-    await give(m);
-    processed++;
-
-    await delay(450);
-  }
-
-  clearInterval(heartbeat);
-
-  return interaction.editReply(
-    `✅ **DONE MASSROLE**\n\n` +
-    `📊 ${progressBar(processed, total)}\n` +
-    `🔢 ${processed}/${total}\n` +
-    `➕ Dodano: ${added}\n` +
-    `⏭️ Pominięto: ${skipped}`
-  );
-}
   // ── KALKULATOR: ile dostanę ────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
     await interaction.reply({
       content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:',
       components: [buildSelectMenuRow('select_ile_dostane')],
-      flags: 64  // ephemeral przez flags zamiast przestarzałego ephemeral:true
+      flags: 64
     });
     return;
   }
@@ -520,7 +758,6 @@ if (mode === 'id') {
     const modal = new ModalBuilder()
       .setCustomId(`modal_ile_dostane_${metodaKey}`)
       .setTitle('💰 Ile dolarów serwerowych dostanę?');
-
     modal.addComponents(new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('kwota_zl')
@@ -535,15 +772,12 @@ if (mode === 'id') {
   }
 
   if (interaction.isModalSubmit() && interaction.customId.startsWith('modal_ile_dostane_')) {
-    const metodaKey = interaction.customId.replace('modal_ile_dostane_', '');
-    const metoda    = PROWIZJE[metodaKey];
-    const kwotaZl   = parseZloty(interaction.fields.getTextInputValue('kwota_zl'));
+    const metodaKey    = interaction.customId.replace('modal_ile_dostane_', '');
+    const metoda       = PROWIZJE[metodaKey];
+    const kwotaZl      = parseZloty(interaction.fields.getTextInputValue('kwota_zl'));
 
     if (!kwotaZl) {
-      await interaction.reply({
-        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`zł\` na końcu, np. \`10zł\`, \`50zł\`, \`100zł\`.\nSpróbuj ponownie!`,
-        flags: 64
-      });
+      await interaction.reply({ content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`zł\` na końcu, np. \`10zł\`, \`50zł\`, \`100zł\`.\nSpróbuj ponownie!`, flags: 64 });
       return;
     }
 
@@ -578,7 +812,6 @@ if (mode === 'id') {
     const modal = new ModalBuilder()
       .setCustomId(`modal_ile_zaplacic_${metodaKey}`)
       .setTitle('💸 Ile zapłacić za tyle dolarów?');
-
     modal.addComponents(new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('kwota_dolary')
@@ -598,10 +831,7 @@ if (mode === 'id') {
     const dolary    = parseDolary(interaction.fields.getTextInputValue('kwota_dolary'));
 
     if (!dolary) {
-      await interaction.reply({
-        content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`k\` (tysiące) lub \`m\` (miliony) na końcu, np. \`80k\`, \`800k\`, \`1m\`.\nSpróbuj ponownie!`,
-        flags: 64
-      });
+      await interaction.reply({ content: `❌ **Nieprawidłowy format!**\nMusisz podać kwotę z \`k\` (tysiące) lub \`m\` (miliony) na końcu, np. \`80k\`, \`800k\`, \`1m\`.\nSpróbuj ponownie!`, flags: 64 });
       return;
     }
 
@@ -618,6 +848,105 @@ if (mode === 'id') {
         `💵 Musisz zapłacić łącznie: **${do_zaplaty_zl.toFixed(2)} zł**`,
       flags: 64
     });
+    return;
+  }
+
+  // ── PRZYCISK: KUP PELERYNKĘ → modal ───────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'kup_pelerynke') {
+    const modal = new ModalBuilder()
+      .setCustomId('modal_kup_pelerynke')
+      .setTitle('🛍️ Zakup pelerynki — SS Shop');
+
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('nazwa_pelerynki')
+        .setLabel('Wpisz PEŁNĄ nazwę pelerynki lub "zestaw"')
+        .setPlaceholder('np. Home Cape / Copper Cape / Purple Heart / MCE Cape / Menace / zestaw')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(50)
+    ));
+
+    await interaction.showModal(modal);
+    return;
+  }
+
+  // ── MODAL: zakup pelerynki — walidacja + ticket ────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId === 'modal_kup_pelerynke') {
+    const input      = interaction.fields.getTextInputValue('nazwa_pelerynki');
+    const pelerynka  = znajdzPelerynke(input);
+
+    if (!pelerynka) {
+      await interaction.reply({
+        content:
+          `❌ **Nie rozpoznano nazwy pelerynki!**\n\n` +
+          `Musisz wpisać **pełną nazwę** jednej z pelerynek:\n` +
+          `> \`Home Cape\`, \`Copper Cape\`, \`Menace\`, \`Purple Heart\`, \`MCE Cape\`\n` +
+          `> lub \`zestaw\` jeśli chcesz kupić kilka\n\n` +
+          `Spróbuj ponownie! 💜`,
+        flags: 64
+      });
+      return;
+    }
+
+    // Przygotuj info o cenie
+    let cenaTekst;
+    let opis;
+    if (pelerynka.key === 'zestaw') {
+      cenaTekst = 'Do ustalenia (zestaw)';
+      opis =
+        `${pelerynka.emoji} Pelerynka: **Zestaw**\n` +
+        `💵 Cena: **Do ustalenia** — admin wyceni zestaw indywidualnie\n`;
+    } else {
+      cenaTekst = `${pelerynka.cena} zł`;
+      opis =
+        `${pelerynka.emoji} Pelerynka: **${pelerynka.nazwaDisplay}**\n` +
+        `💵 Cena: **${pelerynka.cena} zł**\n`;
+    }
+
+    // Utwórz ticket
+    await interaction.deferReply({ flags: 64 });
+
+    const guild  = interaction.guild;
+    const result = await createTicketChannel(guild, interaction.user, pelerynka.nazwaDisplay, cenaTekst);
+
+    if (result.exists) {
+      await interaction.editReply({
+        content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ zakup. 💜`
+      });
+      return;
+    }
+
+    await sendTicketWelcome(result.channel, interaction.user, pelerynka.nazwaDisplay, cenaTekst);
+
+    await interaction.editReply({
+      content:
+        `✅ **Ticket zakupowy otwarty!**\n\n` +
+        opis +
+        `\n📩 Kanał: <#${result.channel.id}>\nObsługa wkrótce się z Tobą skontaktuje 💜`
+    });
+    return;
+  }
+
+  // ── PRZYCISK: ZAMKNIJ TICKET ───────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'zamknij_ticket') {
+    // Tylko admin lub właściciel ticketu może zamknąć
+    const ticketData = await pool.query(
+      `SELECT * FROM tickets WHERE channel_id = $1`,
+      [interaction.channel.id]
+    );
+    const ticket = ticketData.rows[0];
+
+    const isAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
+    const isOwner = ticket && ticket.user_id === interaction.user.id;
+
+    if (!isAdmin && !isOwner) {
+      await interaction.reply({ content: '❌ Tylko admin lub właściciel ticketu może go zamknąć!', flags: 64 });
+      return;
+    }
+
+    await interaction.reply({ content: '🔒 Zamykam ticket i zapisuję transcript...', flags: 64 });
+    await closeTicket(interaction.channel, interaction.user);
     return;
   }
 
@@ -684,7 +1013,6 @@ if (mode === 'id') {
     const ilosc         = interaction.options.getInteger('ilosc');
     const targetUserId  = interaction.options.getString('user_id');
 
-    // Pobierz listę użytkowników
     let users = [];
     if (tryb === 'all') {
       const result = await pool.query('SELECT user_id FROM users');
@@ -702,7 +1030,6 @@ if (mode === 'id') {
 
     console.log(`🚀 Transfer: ${users.length} użytkowników → guild ${targetGuildId} (tryb: ${tryb})`);
 
-    // Pobierz targetGuild raz przed pętlą
     const targetGuild = await client.guilds.fetch(targetGuildId).catch(() => null);
     if (!targetGuild) {
       return interaction.editReply({ content: '❌ Nie znaleziono serwera docelowego! Bot musi być na tym serwerze.' });
@@ -710,11 +1037,8 @@ if (mode === 'id') {
 
     let success = 0, failed = 0, alreadyOnServer = 0, deauthorized = 0, notFound = 0;
 
-    // ─── OPTYMALIZACJA TRANSFERU ───────────────────────────────────────────
-    // Przetwarzamy 5 użytkowników równolegle zamiast 1 po 1
-    // Discord rate limit: ~5 req/s per route, więc 5 równolegle + 300ms delay
-    const BATCH_SIZE = 5;
-    const BATCH_DELAY = 300; // ms między batchami
+    const BATCH_SIZE  = 5;
+    const BATCH_DELAY = 300;
 
     async function addSingleUser(row) {
       let attempts = 0;
@@ -726,81 +1050,58 @@ if (mode === 'id') {
           const response = await axios.put(
             `https://discord.com/api/guilds/${targetGuildId}/members/${row.user_id}`,
             { access_token: accessToken },
-            {
-              headers: {
-                Authorization: `Bot ${BOT_TOKEN}`,
-                'Content-Type': 'application/json'
-              },
-              timeout: 10_000
-            }
+            { headers: { Authorization: `Bot ${BOT_TOKEN}`, 'Content-Type': 'application/json' }, timeout: 10_000 }
           );
 
           if (response.status === 204) {
-            // 204 = użytkownik już na serwerze
             alreadyOnServer++;
           } else {
-            // 201 = dodano pomyślnie
             success++;
-
-            // Nadaj rangę i wyślij powitanie asynchronicznie (nie blokuj pętli)
             setImmediate(async () => {
               try {
-                // BUGFIX: krótkie opóźnienie żeby Discord zdążył przetworzyć nowego membera
                 await new Promise(r => setTimeout(r, 1500));
                 const member = await targetGuild.members.fetch(row.user_id).catch(() => null);
                 if (member) {
                   await member.roles.add(TRANSFER_ROLE_ID);
                   await sendWelcomeMessage(member);
                 } else {
-                  console.warn(`⚠️ Member ${row.user_id} nie znaleziony po dodaniu (guild cache issue)`);
+                  console.warn(`⚠️ Member ${row.user_id} nie znaleziony po dodaniu`);
                 }
               } catch (err) {
                 console.error(`❌ Błąd rangi/powitania dla ${row.user_id}:`, err.message);
               }
             });
           }
-          return; // sukces — wyjdź z pętli retry
+          return;
 
         } catch (err) {
           const status = err?.response?.status;
           const data   = err?.response?.data;
 
-          // Rate limit — poczekaj i spróbuj ponownie
           if (status === 429 && data?.retry_after) {
             const waitMs = Math.ceil(data.retry_after) + 500;
-            console.log(`⏳ Rate limit dla ${row.user_id}, czekam ${waitMs}ms...`);
             await new Promise(r => setTimeout(r, waitMs));
             attempts++;
             continue;
           }
-
-          // Token odautoryzowany
           if (data?.code === 50025) { deauthorized++; return; }
-
-          // Nieistniejący użytkownik
           if (data?.code === 10013) { notFound++; return; }
 
           console.error(`❌ Błąd dodawania ${row.user_id} (próba ${attempts + 1}):`, data || err.message);
           attempts++;
         }
       }
-      // Przekroczono limit prób
       failed++;
     }
 
-    // Przetwarzaj użytkowników w batchach
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
       const batch = users.slice(i, i + BATCH_SIZE);
-
-      // Wszystkich w batchu równolegle
       await Promise.all(batch.map(row => addSingleUser(row)));
 
-      // Loguj postęp co 50 użytkowników
       if ((i + BATCH_SIZE) % 50 === 0) {
         console.log(`📊 Postęp: ${Math.min(i + BATCH_SIZE, users.length)}/${users.length} | ✅ ${success} | 👥 ${alreadyOnServer} | ❌ ${failed}`);
       }
 
-      // Poczekaj między batchami (szanuj rate limit)
       if (i + BATCH_SIZE < users.length) {
         await new Promise(r => setTimeout(r, BATCH_DELAY));
       }
@@ -826,55 +1127,39 @@ if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
     new SlashCommandBuilder()
-  .setName('massrole')
-  .setDescription('Masowe nadawanie ról (ONLY OWNER)')
-  .addStringOption(opt =>
-    opt.setName('mode')
-      .setDescription('Tryb')
-      .setRequired(true)
-      .addChoices(
-        { name: '👥 Everyone', value: 'all' },
-        { name: '🚫 Without role', value: 'without' },
-        { name: '👤 Single user', value: 'id' }
+      .setName('massrole')
+      .setDescription('Masowe nadawanie ról (ONLY OWNER)')
+      .addStringOption(opt =>
+        opt.setName('mode').setDescription('Tryb').setRequired(true)
+          .addChoices(
+            { name: '👥 Everyone',    value: 'all'     },
+            { name: '🚫 Without role', value: 'without' },
+            { name: '👤 Single user',  value: 'id'      }
+          )
       )
-  )
-  .addStringOption(opt =>
-    opt.setName('role_id')
-      .setDescription('ID roli')
-      .setRequired(true)
-  )
-  .addStringOption(opt =>
-    opt.setName('user_id')
-      .setDescription('ID usera (tylko single)')
-      .setRequired(false)
-  )
-  .toJSON(),
+      .addStringOption(opt => opt.setName('role_id').setDescription('ID roli').setRequired(true))
+      .addStringOption(opt => opt.setName('user_id').setDescription('ID usera (tylko single)').setRequired(false))
+      .toJSON(),
+
     new SlashCommandBuilder()
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
       .toJSON(),
+
     new SlashCommandBuilder()
       .setName('transfer')
       .setDescription('Przenosi użytkowników na podany serwer')
+      .addStringOption(opt => opt.setName('guild_id').setDescription('ID serwera docelowego').setRequired(true))
       .addStringOption(opt =>
-        opt.setName('guild_id').setDescription('ID serwera docelowego').setRequired(true)
-      )
-      .addStringOption(opt =>
-        opt.setName('tryb')
-          .setDescription('all = wszyscy, random = losowi, id = konkretna osoba')
-          .setRequired(true)
+        opt.setName('tryb').setDescription('all = wszyscy, random = losowi, id = konkretna osoba').setRequired(true)
           .addChoices(
-            { name: 'Wszyscy',                  value: 'all'    },
-            { name: 'Losowi',                   value: 'random' },
-            { name: 'Konkretna osoba (po ID)',  value: 'id'     }
+            { name: 'Wszyscy',                 value: 'all'    },
+            { name: 'Losowi',                  value: 'random' },
+            { name: 'Konkretna osoba (po ID)', value: 'id'     }
           )
       )
-      .addIntegerOption(opt =>
-        opt.setName('ilosc').setDescription('Ile losowych osób (tylko przy trybie random)').setRequired(false)
-      )
-      .addStringOption(opt =>
-        opt.setName('user_id').setDescription('ID użytkownika (tylko przy trybie id)').setRequired(false)
-      )
+      .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ile losowych osób (tylko przy trybie random)').setRequired(false))
+      .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tylko przy trybie id)').setRequired(false))
       .toJSON()
   ];
 
@@ -943,7 +1228,7 @@ app.get('/callback', async (req, res) => {
           .setThumbnail(avatar)
           .addFields(
             { name: '👤 Użytkownik', value: `${globalName} (\`${username}\`)`, inline: true },
-            { name: '🆔 ID',         value: `\`${discordUserId}\``, inline: true },
+            { name: '🆔 ID',         value: `\`${discordUserId}\``,            inline: true },
             { name: '🕐 Czas',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
           )
           .setFooter({ text: 'SS Shop | System weryfikacji' })
