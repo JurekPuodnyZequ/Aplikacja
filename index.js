@@ -56,7 +56,6 @@ const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694
 
 // ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
 const TICKET_METODY = {
-  blik_kod:     { nazwa: 'BLIK (kod)',            prowizja: 0,  emoji: '<:blik:1498356421262053386>' },
   blik_telefon: { nazwa: 'BLIK na numer tel.',    prowizja: 0,  emoji: '📱' },
   crypto:       { nazwa: 'Crypto (BTC/ETH/LTC/USDT/USDC)', prowizja: 0, emoji: '🪙' },
   paypal:       { nazwa: 'PayPal',                prowizja: 5,  emoji: '<:paypal:1498357795433746653>' },
@@ -466,7 +465,6 @@ function buildCennikEmbed() {
       {
         name: '💳 Metody płatności',
         value:
-          `<:blik:1498356421262053386> **BLIK (kod)** — bez prowizji\n` +
           `📱 **BLIK na numer tel.** — bez prowizji\n` +
           `🪙 **Crypto** (BTC/ETH/LTC/USDT/USDC) — bez prowizji\n` +
           `<:paypal:1498357795433746653> **PayPal** — +5% prowizji\n` +
