@@ -580,6 +580,39 @@ async function closeTicket(ticketChannel, closedBy) {
   }
 }
 
+// ─── WEBHOOK HELPER — wysyła wiadomość jako dany użytkownik (nick + avatar) ──
+async function sendViaWebhook(channel, content, username, avatarURL) {
+  try {
+    // Pobierz lub utwórz webhook na kanale
+    const webhooks = await channel.fetchWebhooks();
+    let webhook = webhooks.find(w => w.owner?.id === client.user?.id && w.name === 'SS Shop LC');
+
+    if (!webhook) {
+      webhook = await channel.createWebhook({
+        name: 'SS Shop LC',
+        avatar: SS_SHOP_EMOJI_URL,
+        reason: 'Auto legit check webhook'
+      });
+    }
+
+    // Wyślij wiadomość przez webhook z nazwą i avatarem klienta
+    const sent = await webhook.send({
+      content,
+      username:  username  || 'Klient',
+      avatarURL: avatarURL || `https://cdn.discordapp.com/embed/avatars/0.png`,
+    });
+
+    // webhook.send() zwraca obiekt Message — możemy dodać reakcję
+    // Pobieramy świeżą wiadomość żeby mieć pełny obiekt z .react()
+    const fetchedMsg = await channel.messages.fetch(sent.id).catch(() => null);
+    return fetchedMsg;
+  } catch (err) {
+    console.error('❌ Błąd sendViaWebhook:', err.message);
+    // Fallback — wyślij normalną wiadomością bota
+    return await channel.send(content).catch(() => null);
+  }
+}
+
 // ─── BOT ──────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -644,6 +677,9 @@ client.on('messageCreate', async message => {
 
   const match = message.content.match(/^\+rep <@(\d+)> .+ \d+ PLN$/i);
   if (!match) return;
+
+  // Dodaj reakcję ✅ do każdej wiadomości +rep na kanale legit-check
+  await message.react('✅').catch(() => {});
 
   // Znajdź ticket powiązany z tym użytkownikiem (który jeszcze nie ma done=true)
   for (const [channelId, done] of legitCheckMap.entries()) {
@@ -1033,22 +1069,34 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ content: '✅ Wysłano wiadomość z prośbą o legit check. Ticket zostanie zamknięty po 10 minutach lub po wysłaniu legit checka przez klienta.' });
 
+    // Pobierz dane klienta już teraz (username + avatar) — zanim ticket zostanie zamknięty
+    let clientUsername  = ticket.username || ticket.user_id;
+    let clientAvatarURL = `https://cdn.discordapp.com/embed/avatars/0.png`;
+    try {
+      const clientUser = await client.users.fetch(ticket.user_id);
+      clientUsername  = clientUser.username;
+      clientAvatarURL = clientUser.displayAvatarURL({ extension: 'png', size: 128 });
+    } catch {}
+
     // Timer 10 minut — zamknij ticket jeśli klient nie wysłał +rep
     const channelIdSnapshot = interaction.channel.id;
     const ticketSnapshot    = { ...ticket };
+    const usernameSnapshot  = clientUsername;
+    const avatarSnapshot    = clientAvatarURL;
 
     setTimeout(async () => {
       try {
         const done = legitCheckMap.get(channelIdSnapshot);
         if (done) return; // Klient sam wysłał legit check
 
-        // Auto legit check
-        await legitCheckChannel.send(
-          `+rep <@${ticketSnapshot.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`
+        // Wyślij +rep przez webhook — wygląda jak wiadomość od klienta (jego nick + avatar)
+        const autoMsg = await sendViaWebhook(
+          legitCheckChannel,
+          `+rep <@${ticketSnapshot.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`,
+          usernameSnapshot,
+          avatarSnapshot
         );
-        await legitCheckChannel.send(
-          `⚠️ Auto legit check — klient <@${ticketSnapshot.user_id}> nie wysłał w ciągu 10 minut.`
-        );
+        if (autoMsg) await autoMsg.react('✅').catch(() => {});
 
         // Oznacz jako zrobiony żeby listener nie zamknął jeszcze raz
         legitCheckMap.set(channelIdSnapshot, true);
