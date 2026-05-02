@@ -1,4 +1,6 @@
 require('dotenv').config();
+
+const legitCheckMap = new Map();
 const express = require('express');
 const axios = require('axios');
 const { Pool } = require('pg');
@@ -33,27 +35,21 @@ const {
   PORT = 3000
 } = process.env;
 
-const LOG_CHANNEL_ID          = '1495432512506429465';
-const WELCOME_CHANNEL_ID      = '1495432511893803063';
-const KALKULATOR_CHANNEL_ID   = '1498340002323628164';
-const KALKULATOR_MSG_KEY      = 'kalkulator_message_id';
-const TRANSFER_ROLE_ID        = '1495432509263974431';
+const LOG_CHANNEL_ID         = '1495432512506429465';
+const WELCOME_CHANNEL_ID     = '1495432511893803063';
+const KALKULATOR_CHANNEL_ID  = '1498340002323628164';
+const KALKULATOR_MSG_KEY     = 'kalkulator_message_id';
+const TRANSFER_ROLE_ID       = '1495432509263974431';
 
-const CENNIK_CHANNEL_ID       = '1499896166911840323';
-const CENNIK_MSG_KEY          = 'cennik_message_id';
-const TICKET_CATEGORY_ID      = '1495432511893803060';
-const TICKET_LOG_CHANNEL_ID   = '1495432512506429465';
-const LEGIT_CHECK_CHANNEL_ID  = '1495432512175083607';
+const CENNIK_CHANNEL_ID      = '1499896166911840323';
+const CENNIK_MSG_KEY         = 'cennik_message_id';
+const TICKET_CATEGORY_ID     = '1495432511893803060';
+const TICKET_LOG_CHANNEL_ID  = '1495432512506429465';
+const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 
 const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
-// ─── EMOTKI (POPRAWIONE) ───────────────────────────────────────────────────────
-// HOME:         1499901372974497973
-// MENACE:       1499901418646012056
-// PURPLE_HEART: 1499901459796590693
-// MCE:          1499901525617672322
-// COPPER:       1499901582274330675
-
+// ─── PELERYNKI ────────────────────────────────────────────────────────────────
 const PELERYNKI = {
   'home cape':    { cena: 7,   emoji: '<:HOME:1499901372974497973>',          nazwaDisplay: 'Home Cape'    },
   'copper cape':  { cena: 10,  emoji: '<:COPPER:1499901582274330675>',        nazwaDisplay: 'Copper Cape'  },
@@ -131,18 +127,10 @@ const pool = new Pool({
 });
 
 async function initDB() {
-  // 🔧 AUTO-NAPRAWA KOLUMN (ważne)
-await pool.query(`
-  ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_user_id TEXT;
-`);
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_user_id TEXT;`);
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_username TEXT;`);
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS legit_check_msg_id TEXT;`);
 
-await pool.query(`
-  ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_username TEXT;
-`);
-
-await pool.query(`
-  ALTER TABLE tickets ADD COLUMN IF NOT EXISTS legit_check_msg_id TEXT;
-`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       user_id       TEXT PRIMARY KEY,
@@ -362,7 +350,7 @@ async function sendOrUpdateKalkulator() {
   }
 }
 
-// ─── CENNIK — POPRAWIONE EMOTKI ────────────────────────────────────────────────
+// ─── CENNIK ────────────────────────────────────────────────────────────────────
 function buildCennikEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
@@ -516,7 +504,7 @@ async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
   await ticketChannel.send({ content: `<@${user.id}>`, embeds: [embed], components: [actionRow] });
 }
 
-// ─── TICKET: zamknięcie — transcript ZAWSZE wysyłany ─────────────────────────
+// ─── TICKET: zamknięcie ───────────────────────────────────────────────────────
 async function closeTicket(ticketChannel, closedBy) {
   try {
     const messages = await ticketChannel.messages.fetch({ limit: 100 });
@@ -534,7 +522,9 @@ async function closeTicket(ticketChannel, closedBy) {
     );
     const ticket = ticketData.rows[0] || {};
 
-    // Transcript wysyłany ZAWSZE, niezależnie od statusu przejęcia
+    legitCheckMap.delete(ticketChannel.id);
+    console.log(`🧹 Usunięto legitCheckMap dla ${ticketChannel.id}`);
+
     try {
       const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID);
       if (logChannel) {
@@ -542,11 +532,11 @@ async function closeTicket(ticketChannel, closedBy) {
           .setColor(0xff0000)
           .setTitle('🔒 Ticket zamknięty — Transcript')
           .addFields(
-            { name: '👤 Użytkownik', value: ticket.user_id ? `<@${ticket.user_id}>` : 'nieznany',      inline: true },
-            { name: '🛒 Pelerynka',  value: ticket.pelerynka || 'nieznana',                            inline: true },
-            { name: '💵 Cena',       value: ticket.cena || 'nieznana',                                 inline: true },
-            { name: '🔒 Zamknął',    value: closedBy?.tag || closedBy?.username || 'nieznany',         inline: true },
-            { name: '📅 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,                  inline: true }
+            { name: '👤 Użytkownik', value: ticket.user_id ? `<@${ticket.user_id}>` : 'nieznany',    inline: true },
+            { name: '🛒 Pelerynka',  value: ticket.pelerynka || 'nieznana',                          inline: true },
+            { name: '💵 Cena',       value: ticket.cena || 'nieznana',                               inline: true },
+            { name: '🔒 Zamknął',    value: closedBy?.tag || closedBy?.username || 'nieznany',       inline: true },
+            { name: '📅 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,                inline: true }
           )
           .setFooter({ text: 'SS Shop | System Ticketów 💜' })
           .setTimestamp();
@@ -573,7 +563,7 @@ async function closeTicket(ticketChannel, closedBy) {
   }
 }
 
-// ─── BOT ─────────────────────────────────────────────────────────────────────
+// ─── BOT ──────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -583,14 +573,14 @@ const client = new Client({
   ]
 });
 
-client.once('clientReady', async () => {
+client.once('ready', async () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
   await initDB();
   await sendOrUpdateKalkulator();
   await sendOrUpdateCennik();
 });
 
-// ─── ANTI-INVITE ─────────────────────────────────────────────────────────────
+// ─── ANTI-INVITE ──────────────────────────────────────────────────────────────
 const DISCORD_LINK_REGEX = /(discord\.gg\/|discord\.com\/invite\/|dsc\.gg\/)/i;
 
 client.on('messageCreate', async message => {
@@ -629,41 +619,47 @@ client.on('messageCreate', async message => {
   }
 });
 
-// ─── LEGIT CHECK: nasłuchiwanie (POZA interactionCreate) ─────────────────────
+// ─── LEGIT CHECK LISTENER ────────────────────────────────────────────────────
+// Nasłuchuje czy klient wysłał +rep ręcznie, zanim timer zamknie ticket
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
 
-  const legitCheckRegex = /\+rep <@(\d+)> (.+) (\d+) PLN/i;
-  const match = message.content.match(legitCheckRegex);
+  const match = message.content.match(/^\+rep <@(\d+)> .+ \d+ PLN$/i);
   if (!match) return;
 
-  const takenByUserId = match[1];
+  // Znajdź ticket powiązany z tym użytkownikiem (który jeszcze nie ma done=true)
+  for (const [channelId, done] of legitCheckMap.entries()) {
+    if (done) continue;
 
-  const ticketData = await pool.query(
-    `SELECT * FROM tickets WHERE user_id = $1 AND taken_by_user_id = $2 AND status != 'closed' ORDER BY created_at DESC LIMIT 1`,
-    [message.author.id, takenByUserId]
-  );
-  const ticket = ticketData.rows[0];
-  if (!ticket) return;
+    const ticketData = await pool.query(
+      `SELECT * FROM tickets WHERE channel_id = $1`,
+      [channelId]
+    ).catch(() => null);
 
-  // Usuń starą wiadomość bota z legit checkiem
-  if (ticket.legit_check_msg_id) {
-    const oldMsg = await message.channel.messages.fetch(ticket.legit_check_msg_id).catch(() => null);
-    if (oldMsg) await oldMsg.delete().catch(() => {});
+    if (!ticketData || ticketData.rows.length === 0) continue;
+    const ticket = ticketData.rows[0];
+
+    // Sprawdź czy autorem jest właściciel ticketu
+    if (message.author.id !== ticket.user_id) continue;
+
+    // Oznacz jako zrobiony
+    legitCheckMap.set(channelId, true);
+    console.log(`✅ Legit check od użytkownika dla ticketu ${channelId}`);
+
+    // Zamknij ticket
+    const ticketChannel = await client.channels.fetch(channelId).catch(() => null);
+    if (ticketChannel) {
+      await closeTicket(ticketChannel, message.author);
+    }
+    break;
   }
-
-  const ticketChannel = await client.channels.fetch(ticket.channel_id).catch(() => null);
-  if (ticketChannel) {
-    await closeTicket(ticketChannel, message.author);
-  }
-  console.log(`✅ Klient ${message.author.username} wysłał legit check. Ticket ${ticket.channel_id} zamknięty.`);
 });
 
-// ─── INTERAKCJE ──────────────────────────────────────────────────────────────
+// ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
 
-  // ── MASSROLE ────────────────────────────────────────────────────────────
+  // ── MASSROLE ─────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
@@ -737,7 +733,7 @@ client.on('interactionCreate', async interaction => {
     );
   }
 
-  // ── KALKULATOR: ile dostanę ────────────────────────────────────────────
+  // ── KALKULATOR: ile dostanę ────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
     await interaction.reply({ content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_dostane')], flags: 64 });
     return;
@@ -776,7 +772,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── KALKULATOR: ile zapłacić ───────────────────────────────────────────
+  // ── KALKULATOR: ile zapłacić ──────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_zaplacic') {
     await interaction.reply({ content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_zaplacic')], flags: 64 });
     return;
@@ -815,7 +811,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── KUP PELERYNKĘ → modal ─────────────────────────────────────────────
+  // ── KUP PELERYNKĘ → modal ──────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kup_pelerynke') {
     const modal = new ModalBuilder().setCustomId('modal_kup_pelerynke').setTitle('🛍️ Zakup pelerynki — SS Shop');
     modal.addComponents(new ActionRowBuilder().addComponents(
@@ -831,7 +827,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── MODAL: zakup pelerynki ────────────────────────────────────────────
+  // ── MODAL: zakup pelerynki ─────────────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'modal_kup_pelerynke') {
     const input     = interaction.fields.getTextInputValue('nazwa_pelerynki');
     const pelerynka = znajdzPelerynke(input);
@@ -874,9 +870,8 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── PRZEJMIJ TICKET ───────────────────────────────────────────────────
+  // ── PRZEJMIJ TICKET ───────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'przejmij_ticket') {
-    // Pobierz dane ticketu
     const ticketData = await pool.query(
       `SELECT * FROM tickets WHERE channel_id = $1`,
       [interaction.channel.id]
@@ -886,22 +881,18 @@ client.on('interactionCreate', async interaction => {
     if (!ticket) {
       return interaction.reply({ content: '❌ Nie znaleziono ticketu w bazie danych.', flags: 64 });
     }
-
     if (ticket.taken_by_user_id) {
       return interaction.reply({ content: `❌ Ten ticket został już przejęty przez <@${ticket.taken_by_user_id}>.`, flags: 64 });
     }
 
-    // Zaktualizuj bazę
     await pool.query(
       `UPDATE tickets SET taken_by_user_id = $1, taken_by_username = $2 WHERE channel_id = $3`,
       [interaction.user.id, interaction.user.username, interaction.channel.id]
     );
 
-    // Zmień nazwę kanału
     const newName = `przejete-${interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '')}`;
     await interaction.channel.setName(newName).catch(() => {});
 
-    // Zaktualizuj uprawnienia
     await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { ViewChannel: false }).catch(() => {});
     await interaction.channel.permissionOverwrites.edit(interaction.user.id, {
       ViewChannel: true, SendMessages: true, ReadMessageHistory: true
@@ -910,7 +901,6 @@ client.on('interactionCreate', async interaction => {
       ViewChannel: true, SendMessages: true, ReadMessageHistory: true
     }).catch(() => {});
 
-    // Zaktualizuj przyciski — usuń "Przejmij", zostaw tylko "Zamknij"
     const updatedActionRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('zamknij_ticket')
@@ -923,14 +913,13 @@ client.on('interactionCreate', async interaction => {
       components: [updatedActionRow]
     }).catch(() => {});
 
-    // Odpowiedź widoczna dla wszystkich w kanale
     await interaction.reply({
       content: `✅ <@${interaction.user.id}> przejął ticket i zajmie się obsługą klienta! 💜`
     });
     return;
   }
 
-  // ── ZAMKNIJ TICKET ────────────────────────────────────────────────────
+  // ── ZAMKNIJ TICKET ────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'zamknij_ticket') {
     const ticketData = await pool.query(
       `SELECT * FROM tickets WHERE channel_id = $1`,
@@ -946,7 +935,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ Tylko admin, właściciel ticketu lub osoba, która go przejęła, może go zamknąć!', flags: 64 });
     }
 
-    // Jeśli ticket był przejęty — pokaż modal z detalami transakcji
     if (ticket && ticket.taken_by_user_id) {
       const modal = new ModalBuilder()
         .setCustomId('modal_zamknij_ticket')
@@ -973,14 +961,13 @@ client.on('interactionCreate', async interaction => {
       );
       await interaction.showModal(modal);
     } else {
-      // Ticket nieprzejęty — zamknij od razu, transcript wysyłany zawsze
       await interaction.deferReply({ flags: 64 });
       await closeTicket(interaction.channel, interaction.user);
     }
     return;
   }
 
-  // ── MODAL: ZAMKNIJ TICKET ─────────────────────────────────────────────
+  // ── MODAL: ZAMKNIJ TICKET ─────────────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'modal_zamknij_ticket') {
     await interaction.deferReply({ flags: 64 });
 
@@ -992,7 +979,6 @@ client.on('interactionCreate', async interaction => {
       [interaction.channel.id]
     );
     const ticket = ticketData.rows[0];
-
     if (!ticket) return interaction.editReply({ content: '❌ Nie znaleziono ticketu w bazie danych.' });
 
     const legitCheckChannel = await client.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
@@ -1018,6 +1004,9 @@ client.on('interactionCreate', async interaction => {
 
     const sentMessage = await legitCheckChannel.send({ content: `<@${ticket.user_id}>`, embeds: [legitCheckEmbed] });
 
+    // Ustaw jako oczekujący (false = nie zrobiony jeszcze)
+    legitCheckMap.set(interaction.channel.id, false);
+
     await pool.query(
       `UPDATE tickets SET legit_check_msg_id = $1 WHERE channel_id = $2`,
       [sentMessage.id, interaction.channel.id]
@@ -1025,32 +1014,29 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ content: '✅ Wysłano wiadomość z prośbą o legit check. Ticket zostanie zamknięty po 10 minutach lub po wysłaniu legit checka przez klienta.' });
 
-    // Timer 10 minut
+    // Timer 10 minut — zamknij ticket jeśli klient nie wysłał +rep
     const channelIdSnapshot = interaction.channel.id;
+    const ticketSnapshot    = { ...ticket };
+
     setTimeout(async () => {
       try {
-        const updatedTicketData = await pool.query(
-          `SELECT * FROM tickets WHERE channel_id = $1`,
-          [channelIdSnapshot]
-        );
-        const updatedTicket = updatedTicketData.rows[0];
-        if (!updatedTicket || updatedTicket.status === 'closed') return;
+        const done = legitCheckMap.get(channelIdSnapshot);
+        if (done) return; // Klient sam wysłał legit check
 
-        const recentMessages = await legitCheckChannel.messages.fetch({ limit: 50 }).catch(() => null);
-        const legitCheckSent = recentMessages && recentMessages.some(msg =>
-          msg.author.id === updatedTicket.user_id &&
-          msg.content.toLowerCase().includes('+rep') &&
-          msg.content.includes(pelerynkaKupiona) &&
-          msg.content.includes(kwotaWydana)
+        // Auto legit check
+        await legitCheckChannel.send(
+          `+rep <@${ticketSnapshot.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`
+        );
+        await legitCheckChannel.send(
+          `⚠️ Auto legit check — klient <@${ticketSnapshot.user_id}> nie wysłał w ciągu 10 minut.`
         );
 
-        if (!legitCheckSent) {
-          await legitCheckChannel.send(`+rep <@${updatedTicket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`);
-          await legitCheckChannel.send(`⚠️ Klient <@${updatedTicket.user_id}> nie wysłał legit checka w ciągu 10 minut. Bot wysłał go automatycznie.`);
-        }
+        // Oznacz jako zrobiony żeby listener nie zamknął jeszcze raz
+        legitCheckMap.set(channelIdSnapshot, true);
 
         const ticketCh = await client.channels.fetch(channelIdSnapshot).catch(() => null);
         if (ticketCh) await closeTicket(ticketCh, client.user);
+
       } catch (err) {
         console.error('❌ Błąd timera legit check:', err.message);
       }
@@ -1059,7 +1045,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── WERYFIKACJA ───────────────────────────────────────────────────────
+  // ── WERYFIKACJA ───────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'verify') {
     const oauthUrl =
       `https://discord.com/oauth2/authorize` +
@@ -1072,7 +1058,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── KOMENDA: setup-verify ─────────────────────────────────────────────
+  // ── KOMENDA: setup-verify ─────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
@@ -1099,7 +1085,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── KOMENDA: transfer ─────────────────────────────────────────────────
+  // ── KOMENDA: transfer ─────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', flags: 64 });
@@ -1182,6 +1168,7 @@ client.on('interactionCreate', async interaction => {
         `👻 Nie znaleziono: **${notFound}**\n` +
         `❌ Inne błędy: **${failed}**`
     });
+    return;
   }
 });
 
@@ -1198,7 +1185,7 @@ if (process.argv.includes('--setup')) {
       .addStringOption(opt =>
         opt.setName('mode').setDescription('Tryb').setRequired(true)
           .addChoices(
-            { name: '👥 Everyone',    value: 'all'     },
+            { name: '👥 Everyone',     value: 'all'     },
             { name: '🚫 Without role', value: 'without' },
             { name: '👤 Single user',  value: 'id'      }
           )
@@ -1231,7 +1218,7 @@ if (process.argv.includes('--setup')) {
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
 }
 
-// ─── SERWER HTTP ──────────────────────────────────────────────────────────────
+// ─── SERWER HTTP ───────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send('Bot działa!'));
 
 app.get('/callback', async (req, res) => {
