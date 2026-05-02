@@ -769,9 +769,6 @@ const client = new Client({
 client.once('ready', async () => {
   console.log(`✅ Bot zalogowany jako ${client.user.tag}`);
 
-  client.user.setActivity('Bot napisany przez: Astral 🪐', { type: 'WATCHING' });
-  console.log('USTAWIONO STATUS'); // 👈 dodaj to
-
   await initDB();
   await sendOrUpdateKalkulator();
   await sendOrUpdateCennik();
