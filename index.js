@@ -50,10 +50,84 @@ const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 const METODY_CHANNEL_ID      = '1495432511893803068';
 const METODY_MSG_KEY         = 'metody_message_id';
 
-// Minimalna ranga personelu mająca dostęp do ticketów (ta i wyższe w hierarchii)
 const STAFF_BASE_ROLE_ID = '1495432509263974438';
 
 const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
+
+// ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
+const TICKET_METODY = {
+  blik_kod:     { nazwa: 'BLIK (kod)',            prowizja: 0,  emoji: '<:blik:1498356421262053386>' },
+  blik_telefon: { nazwa: 'BLIK na numer tel.',    prowizja: 0,  emoji: '📱' },
+  crypto:       { nazwa: 'Crypto (BTC/ETH/LTC/USDT/USDC)', prowizja: 0, emoji: '🪙' },
+  paypal:       { nazwa: 'PayPal',                prowizja: 5,  emoji: '<:paypal:1498357795433746653>' },
+  psc:          { nazwa: 'PSC',                   prowizja: 10, emoji: '<:psc:1498356914013339705>' },
+};
+
+function obliczCeneZProwizja(cenaBaza, prowizjaProcent) {
+  if (!cenaBaza || cenaBaza === null) return null;
+  const prowizja = cenaBaza * (prowizjaProcent / 100);
+  return +(cenaBaza + prowizja).toFixed(2);
+}
+
+function formatCenaTicket(pelerynka, metodaKey) {
+  const metoda = TICKET_METODY[metodaKey];
+  if (!metoda) return 'nieznana';
+
+  if (pelerynka.key === 'zestaw') {
+    if (metoda.prowizja > 0) return `Do ustalenia + ${metoda.prowizja}% prowizji (${metoda.nazwa})`;
+    return `Do ustalenia (${metoda.nazwa})`;
+  }
+
+  const cenaBaza = pelerynka.cena;
+  if (metoda.prowizja > 0) {
+    const cenaZProwizja = obliczCeneZProwizja(cenaBaza, metoda.prowizja);
+    return `${cenaBaza} zł + ${metoda.prowizja}% = **${cenaZProwizja} zł** (${metoda.nazwa})`;
+  }
+  return `${cenaBaza} zł (${metoda.nazwa})`;
+}
+
+function formatCenaTicketKrotka(pelerynka, metodaKey) {
+  const metoda = TICKET_METODY[metodaKey];
+  if (!metoda) return 'nieznana';
+
+  if (pelerynka.key === 'zestaw') {
+    if (metoda.prowizja > 0) return `Do ustalenia + ${metoda.prowizja}% (${metoda.nazwa})`;
+    return `Do ustalenia (${metoda.nazwa})`;
+  }
+
+  const cenaBaza = pelerynka.cena;
+  if (metoda.prowizja > 0) {
+    const cenaZProwizja = obliczCeneZProwizja(cenaBaza, metoda.prowizja);
+    return `${cenaBaza} zł + ${metoda.prowizja}% = ${cenaZProwizja} zł (${metoda.nazwa})`;
+  }
+  return `${cenaBaza} zł (${metoda.nazwa})`;
+}
+
+// Buduje select menu wyboru metody płatności przy tickecie
+function buildMetodyTicketuRow(pelerynkaKey) {
+  const options = Object.entries(TICKET_METODY).map(([value, data]) => {
+    const label = data.prowizja > 0
+      ? `${data.nazwa} (+${data.prowizja}% prowizji)`
+      : `${data.nazwa} (bez prowizji)`;
+    const opt = new StringSelectMenuOptionBuilder()
+      .setLabel(label)
+      .setValue(value);
+    if (data.emoji.startsWith('<')) {
+      const id = data.emoji.match(/\d{17,20}/)?.[0];
+      if (id) opt.setEmoji({ id });
+    } else {
+      opt.setEmoji({ name: data.emoji });
+    }
+    return opt;
+  });
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`select_metoda_platnosci_${pelerynkaKey}`)
+    .setPlaceholder('💳 Wybierz metodę płatności...')
+    .addOptions(options);
+
+  return new ActionRowBuilder().addComponents(select);
+}
 
 // ─── PELERYNKI ────────────────────────────────────────────────────────────────
 const PELERYNKI = {
@@ -136,6 +210,8 @@ async function initDB() {
   await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_user_id TEXT;`);
   await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_username TEXT;`);
   await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS legit_check_msg_id TEXT;`);
+  // NOWE: kolumna na metodę płatności
+  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS metoda_platnosci TEXT;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -162,6 +238,7 @@ async function initDB() {
       user_id            TEXT,
       pelerynka          TEXT,
       cena               TEXT,
+      metoda_platnosci   TEXT,
       status             TEXT DEFAULT 'open',
       taken_by_user_id   TEXT DEFAULT NULL,
       taken_by_username  TEXT DEFAULT NULL,
@@ -387,6 +464,16 @@ function buildCennikEmbed() {
         inline: false
       },
       {
+        name: '💳 Metody płatności',
+        value:
+          `<:blik:1498356421262053386> **BLIK (kod)** — bez prowizji\n` +
+          `📱 **BLIK na numer tel.** — bez prowizji\n` +
+          `🪙 **Crypto** (BTC/ETH/LTC/USDT/USDC) — bez prowizji\n` +
+          `<:paypal:1498357795433746653> **PayPal** — +5% prowizji\n` +
+          `<:psc:1498356914013339705> **PSC** — +10% prowizji`,
+        inline: false
+      },
+      {
         name: '🎫 Jak kupić?',
         value: 'Kliknij przycisk **🛍️ Kup pelerynkę** poniżej, aby otworzyć ticket.',
         inline: false
@@ -485,7 +572,7 @@ async function sendOrUpdateMetody() {
 }
 
 // ─── TICKET: tworzenie ────────────────────────────────────────────────────────
-async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
+async function createTicketChannel(guild, user, pelerynka, cenaTekst, metodaKey) {
   const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
 
   const existing = await pool.query(
@@ -537,15 +624,18 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
 
   const ticketChannel = await guild.channels.create(channelOptions);
   await pool.query(
-    `INSERT INTO tickets (channel_id, user_id, pelerynka, cena, status) VALUES ($1,$2,$3,$4,'open')`,
-    [ticketChannel.id, user.id, pelerynka, cenaTekst]
+    `INSERT INTO tickets (channel_id, user_id, pelerynka, cena, metoda_platnosci, status) VALUES ($1,$2,$3,$4,$5,'open')`,
+    [ticketChannel.id, user.id, pelerynka, cenaTekst, metodaKey]
   );
 
   return { exists: false, channel: ticketChannel };
 }
 
 // ─── TICKET: wiadomość powitalna ──────────────────────────────────────────────
-async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
+async function sendTicketWelcome(ticketChannel, user, pelerynkaNazwa, cenaTekst, metodaKey) {
+  const metoda = TICKET_METODY[metodaKey];
+  const metodaNazwa = metoda ? `${metoda.emoji} ${metoda.nazwa}` : 'nieznana';
+
   const embed = new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
@@ -557,8 +647,9 @@ async function sendTicketWelcome(ticketChannel, user, pelerynka, cenaTekst) {
       `Witaj <@${user.id}>! 💜\n\n` +
       `Dziękujemy za zainteresowanie naszą ofertą. Twój ticket został pomyślnie utworzony.\n\n` +
       `**Szczegóły zgłoszenia:**\n` +
-      `> 🛒 Pelerynka: **${pelerynka}**\n` +
-      `> 💵 Cena: **${cenaTekst}**\n\n` +
+      `> 🛒 Pelerynka: **${pelerynkaNazwa}**\n` +
+      `> 💵 Cena: **${cenaTekst}**\n` +
+      `> 💳 Metoda płatności: **${metodaNazwa}**\n\n` +
       `Proszę cierpliwie czekać, członek naszej obsługi zaraz się Tobą zajmie! 💜`
     )
     .setFooter({ text: 'SS Shop | System Ticketów 💜' })
@@ -602,15 +693,17 @@ async function closeTicket(ticketChannel, closedBy) {
     try {
       const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID);
       if (logChannel) {
+        const metodaInfo = ticket.metoda_platnosci ? (TICKET_METODY[ticket.metoda_platnosci]?.nazwa || ticket.metoda_platnosci) : 'nieznana';
         const logEmbed = new EmbedBuilder()
           .setColor(0xff0000)
           .setTitle('🔒 Ticket zamknięty — Transcript')
           .addFields(
-            { name: '👤 Użytkownik', value: ticket.user_id ? `<@${ticket.user_id}>` : 'nieznany',    inline: true },
-            { name: '🛒 Pelerynka',  value: ticket.pelerynka || 'nieznana',                          inline: true },
-            { name: '💵 Cena',       value: ticket.cena || 'nieznana',                               inline: true },
-            { name: '🔒 Zamknął',    value: closedBy?.tag || closedBy?.username || 'nieznany',       inline: true },
-            { name: '📅 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,                inline: true }
+            { name: '👤 Użytkownik',      value: ticket.user_id ? `<@${ticket.user_id}>` : 'nieznany', inline: true },
+            { name: '🛒 Pelerynka',        value: ticket.pelerynka || 'nieznana',                       inline: true },
+            { name: '💵 Cena',             value: ticket.cena || 'nieznana',                            inline: true },
+            { name: '💳 Metoda płatności', value: metodaInfo,                                           inline: true },
+            { name: '🔒 Zamknął',          value: closedBy?.tag || closedBy?.username || 'nieznany',    inline: true },
+            { name: '📅 Data',             value: `<t:${Math.floor(Date.now() / 1000)}:F>`,             inline: true }
           )
           .setFooter({ text: 'SS Shop | System Ticketów 💜' })
           .setTimestamp();
@@ -727,7 +820,6 @@ client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
 
-  // POPRAWKA: obsługuje zarówno <@ID> jak i <@!ID>
   const match = message.content.match(/^\+rep <@!?(\d+)> .+ \d+ PLN$/i);
   if (!match) {
     console.log(`[LC DEBUG] Wiadomość nie pasuje do wzorca: "${message.content}"`);
@@ -931,7 +1023,7 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── MODAL: zakup pelerynki ─────────────────────────────────────────────────
+  // ── MODAL: zakup pelerynki → wybór metody płatności ───────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'modal_kup_pelerynke') {
     const input     = interaction.fields.getTextInputValue('nazwa_pelerynki');
     const pelerynka = znajdzPelerynke(input);
@@ -948,28 +1040,79 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    let cenaTekst, opis;
+    // Po rozpoznaniu pelerynki pokaż wybór metody płatności
+    const cenaBazowa = pelerynka.key === 'zestaw'
+      ? 'Do ustalenia'
+      : `${pelerynka.cena} zł`;
+
+    const opis = pelerynka.key === 'zestaw'
+      ? `${pelerynka.emoji} **Zestaw** — cena do ustalenia`
+      : `${pelerynka.emoji} **${pelerynka.nazwaDisplay}** — baza: \`${pelerynka.cena} zł\``;
+
+    await interaction.reply({
+      content:
+        `💜 **Krok 2 z 2 — Wybierz metodę płatności**\n\n` +
+        `${opis}\n\n` +
+        `Wybierz metodę płatności, a bot automatycznie wyliczy finalną cenę z prowizją:`,
+      components: [buildMetodyTicketuRow(pelerynka.key)],
+      flags: 64
+    });
+    return;
+  }
+
+  // ── SELECT: wybór metody płatności dla ticketu ────────────────────────────
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith('select_metoda_platnosci_')) {
+    const pelerynkaKey = interaction.customId.replace('select_metoda_platnosci_', '');
+    const metodaKey    = interaction.values[0];
+    const pelerynka    = { key: pelerynkaKey, ...PELERYNKI[pelerynkaKey] };
+    const metoda       = TICKET_METODY[metodaKey];
+
+    if (!pelerynka || !metoda) {
+      await interaction.reply({ content: '❌ Wystąpił błąd. Spróbuj ponownie.', flags: 64 });
+      return;
+    }
+
+    // Oblicz cenę z prowizją
+    let cenaTekst, opisCena;
     if (pelerynka.key === 'zestaw') {
-      cenaTekst = 'Do ustalenia (zestaw)';
-      opis = `${pelerynka.emoji} Pelerynka: **Zestaw**\n💵 Cena: **Do ustalenia**\n`;
+      if (metoda.prowizja > 0) {
+        cenaTekst = `Do ustalenia + ${metoda.prowizja}% prowizji`;
+        opisCena  = `💵 Cena: **Do ustalenia** *(+ ${metoda.prowizja}% prowizji ${metoda.nazwa})*`;
+      } else {
+        cenaTekst = `Do ustalenia`;
+        opisCena  = `💵 Cena: **Do ustalenia**`;
+      }
     } else {
-      cenaTekst = `${pelerynka.cena} zł`;
-      opis = `${pelerynka.emoji} Pelerynka: **${pelerynka.nazwaDisplay}**\n💵 Cena: **${pelerynka.cena} zł**\n`;
+      const cenaBaza = pelerynka.cena;
+      if (metoda.prowizja > 0) {
+        const cenaFinal = obliczCeneZProwizja(cenaBaza, metoda.prowizja);
+        cenaTekst = `${cenaBaza} zł + ${metoda.prowizja}% = ${cenaFinal} zł`;
+        opisCena  = `💵 Cena: \`${cenaBaza} zł\` + \`${metoda.prowizja}%\` prowizji = **${cenaFinal} zł**`;
+      } else {
+        cenaTekst = `${cenaBaza} zł`;
+        opisCena  = `💵 Cena: **${cenaBaza} zł** *(bez prowizji)*`;
+      }
     }
 
     await interaction.deferReply({ flags: 64 });
 
     const guild  = interaction.guild;
-    const result = await createTicketChannel(guild, interaction.user, pelerynka.nazwaDisplay, cenaTekst);
+    const result = await createTicketChannel(guild, interaction.user, pelerynka.nazwaDisplay, cenaTekst, metodaKey);
 
     if (result.exists) {
       await interaction.editReply({ content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ zakup. 💜` });
       return;
     }
 
-    await sendTicketWelcome(result.channel, interaction.user, pelerynka.nazwaDisplay, cenaTekst);
+    await sendTicketWelcome(result.channel, interaction.user, pelerynka.nazwaDisplay, cenaTekst, metodaKey);
     await interaction.editReply({
-      content: `✅ **Ticket został otwarty!**\n\n${opis}\n📩 Kanał: <#${result.channel.id}>\nObsługa wkrótce się z Tobą skontaktuje 💜`
+      content:
+        `✅ **Ticket został otwarty!**\n\n` +
+        `${pelerynka.emoji} Pelerynka: **${pelerynka.nazwaDisplay}**\n` +
+        `${opisCena}\n` +
+        `💳 Metoda płatności: **${metoda.emoji} ${metoda.nazwa}**\n\n` +
+        `📩 Kanał: <#${result.channel.id}>\n` +
+        `Obsługa wkrótce się z Tobą skontaktuje 💜`
     });
     return;
   }
@@ -1088,15 +1231,21 @@ client.on('interactionCreate', async interaction => {
     const legitCheckChannel = await client.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
     if (!legitCheckChannel) return interaction.editReply({ content: '❌ Nie znaleziono kanału do legit checków.' });
 
-    // Pobierz dane klienta PRZED wysłaniem embed — potrzebujemy avatara
+    // Pobierz dane klienta
     let clientUsername  = ticket.username || ticket.user_id;
     let clientAvatarURL = `https://cdn.discordapp.com/embed/avatars/0.png`;
     try {
       const clientUser = await client.users.fetch(ticket.user_id);
       clientUsername  = clientUser.username;
-      // POPRAWKA: forceStatic=false żeby pobrać gif jeśli klient ma animowany avatar
       clientAvatarURL = clientUser.displayAvatarURL({ extension: 'png', size: 256, forceStatic: false });
     } catch {}
+
+    // Pobierz info o metodzie płatności z bazy
+    const metodaKey  = ticket.metoda_platnosci || null;
+    const metoda     = metodaKey ? TICKET_METODY[metodaKey] : null;
+    const metodaInfo = metoda
+      ? `${metoda.emoji} ${metoda.nazwa}${metoda.prowizja > 0 ? ` (+${metoda.prowizja}% prowizji)` : ' (bez prowizji)'}`
+      : 'nieznana';
 
     const legitCheckEmbed = new EmbedBuilder()
       .setColor(0x6a00ff)
@@ -1111,6 +1260,7 @@ client.on('interactionCreate', async interaction => {
       .addFields(
         { name: '🛒 Pelerynka',          value: pelerynkaKupiona,                   inline: true  },
         { name: '💵 Kwota',              value: `${kwotaWydana} PLN`,               inline: true  },
+        { name: '💳 Metoda płatności',   value: metodaInfo,                         inline: true  },
         { name: '👤 Obsługa',            value: `<@${ticket.taken_by_user_id}>`,    inline: true  },
         { name: '📢 Kanał legit check',  value: `<#${LEGIT_CHECK_CHANNEL_ID}>`,     inline: false }
       )
@@ -1129,19 +1279,18 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ content: '✅ Wysłano wiadomość z prośbą o legit check. Ticket zostanie zamknięty po 10 minutach lub po wysłaniu legit checka przez klienta.' });
 
     // Snapshoty do timera
-    const channelIdSnapshot    = interaction.channel.id;
-    const ticketSnapshot       = { ...ticket };
-    const usernameSnapshot     = clientUsername;
-    const avatarSnapshot       = clientAvatarURL;
-    const pelerynkaSnapshot    = pelerynkaKupiona;
-    const kwotaSnapshot        = kwotaWydana;
+    const channelIdSnapshot = interaction.channel.id;
+    const ticketSnapshot    = { ...ticket };
+    const usernameSnapshot  = clientUsername;
+    const avatarSnapshot    = clientAvatarURL;
+    const pelerynkaSnapshot = pelerynkaKupiona;
+    const kwotaSnapshot     = kwotaWydana;
 
     setTimeout(async () => {
       try {
         const done = legitCheckMap.get(channelIdSnapshot);
         if (done) return;
 
-        // POPRAWKA: webhook używa avatara klienta pobranego wcześniej
         const autoMsg = await sendViaWebhook(
           legitCheckChannel,
           `+rep <@${ticketSnapshot.taken_by_user_id}> ${pelerynkaSnapshot} ${kwotaSnapshot} PLN`,
