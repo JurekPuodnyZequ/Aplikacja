@@ -47,6 +47,9 @@ const TICKET_CATEGORY_ID     = '1495432511893803060';
 const TICKET_LOG_CHANNEL_ID  = '1495432512506429465';
 const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 
+const METODY_CHANNEL_ID      = '1495432511893803068';
+const METODY_MSG_KEY         = 'metody_message_id';
+
 // Minimalna ranga personelu mająca dostęp do ticketów (ta i wyższe w hierarchii)
 const STAFF_BASE_ROLE_ID = '1495432509263974438';
 
@@ -233,11 +236,11 @@ async function refreshAccessToken(userId) {
 const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
   blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 2,  emoji: '<:blik:1498356421262053386>' },
-  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1498356295408029807>' },
+  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 4,  emoji: '<:btc:1498356295408029807>' },
   ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1498356372339818747>' },
-  usdt:         { nazwa: 'USDT',                   prowizja: 0,  emoji: '<:usdt:1498356339053822102>' },
-  usdc:         { nazwa: 'USDC',                   prowizja: 0,  emoji: '<:usdc:1498356270498054264>' },
-  eth:          { nazwa: 'ETH (Ethereum)',          prowizja: 0,  emoji: '<:eth:1498008998299959397>' },
+  usdt:         { nazwa: 'USDT',                   prowizja: 4,  emoji: '<:usdt:1498356339053822102>' },
+  usdc:         { nazwa: 'USDC',                   prowizja: 4,  emoji: '<:usdc:1498356270498054264>' },
+  eth:          { nazwa: 'ETH (Ethereum)',          prowizja: 4,  emoji: '<:eth:1498008998299959397>' },
   paypal:       { nazwa: 'PayPal',                 prowizja: 13, emoji: '<:paypal:1498357795433746653>' },
   psc_paragon:  { nazwa: 'PSC z paragonem',        prowizja: 13, emoji: '<:psc:1498356914013339705>' },
   psc_bez:      { nazwa: 'PSC bez paragonu',       prowizja: 20, emoji: '<:psc:1498356914013339705>' },
@@ -425,6 +428,62 @@ async function sendOrUpdateCennik() {
   }
 }
 
+// ─── METODY PŁATNOŚCI ──────────────────────────────────────────────────────────
+function buildMetodyEmbed() {
+  return new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setAuthor({
+      name: '💜 SS Shop 💜 × Metody Płatności',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+    })
+    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setTitle('💜 Metody Płatności — SS Shop 💜')
+    .setDescription(
+      '>>> Poniżej znajdziesz wszystkie dostępne metody płatności w **SS Shop** wraz z prowizjami.\n\n' +
+      '**Przy tworzeniu ticketa wpisz dokładną nazwę metody płatności**, np: `PSC bez paragonu`.'
+    )
+    .addFields({
+      name: '💳 Dostępne metody płatności',
+      value:
+        `<:blik:1498356421262053386> **Kod BLIK** — \`2%\` prowizji\n` +
+        `📱 **BLIK na numer telefonu** — \`0%\` prowizji\n` +
+        `<:psc:1498356914013339705> **PSC z paragonem** — \`13%\` prowizji\n` +
+        `<:psc:1498356914013339705> **PSC bez paragonu** — \`20%\` prowizji\n` +
+        `<:mypsc:1498356473153978450> **MyPSC** — \`25%\` prowizji\n` +
+        `<:ltc:1498356372339818747> **LTC (Litecoin)** — \`0%\` prowizji\n` +
+        `<:btc:1498356295408029807> **BTC (Bitcoin)** — \`4%\` prowizji\n` +
+        `<:usdt:1498356339053822102> **USDT** — \`4%\` prowizji\n` +
+        `<:usdc:1498356270498054264> **USDC** — \`4%\` prowizji\n` +
+        `<:eth:1498008998299959397> **ETH (Ethereum)** — \`4%\` prowizji\n` +
+        `<:paypal:1498357795433746653> **PayPal** — \`13%\` prowizji\n`,
+      inline: false
+    })
+    .setFooter({ text: 'SS Shop | Metody Płatności 💜' })
+    .setTimestamp();
+}
+
+async function sendOrUpdateMetody() {
+  try {
+    const channel = await client.channels.fetch(METODY_CHANNEL_ID).catch(() => null);
+    if (!channel) { console.error('❌ Nie znaleziono kanału metod płatności'); return; }
+    const embed      = buildMetodyEmbed();
+    const existingId = await getConfig(METODY_MSG_KEY);
+    if (existingId) {
+      try {
+        const existing = await channel.messages.fetch(existingId);
+        await existing.edit({ embeds: [embed] });
+        console.log('✅ Metody płatności zaktualizowane!');
+        return;
+      } catch {}
+    }
+    const msg = await channel.send({ embeds: [embed] });
+    await setConfig(METODY_MSG_KEY, msg.id);
+    console.log('✅ Metody płatności wysłane!');
+  } catch (err) {
+    console.error('❌ Błąd metod płatności:', err.message);
+  }
+}
+
 // ─── TICKET: tworzenie ────────────────────────────────────────────────────────
 async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
   const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
@@ -440,7 +499,6 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
     await pool.query(`DELETE FROM tickets WHERE channel_id = $1`, [existingChannelId]);
   }
 
-  // Zbierz wszystkie rangi o pozycji >= STAFF_BASE_ROLE_ID
   const baseRole = guild.roles.cache.get(STAFF_BASE_ROLE_ID);
   const basePosition = baseRole ? baseRole.position : 0;
   const staffRoles = guild.roles.cache.filter(r => r.position >= basePosition && r.id !== guild.id);
@@ -455,7 +513,6 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
         PermissionsBitField.Flags.ReadMessageHistory,
       ],
     },
-    // Dostęp dla wszystkich rang staffu (STAFF_BASE_ROLE_ID i wyżej)
     ...staffRoles.map(role => ({
       id: role.id,
       allow: [
@@ -580,10 +637,9 @@ async function closeTicket(ticketChannel, closedBy) {
   }
 }
 
-// ─── WEBHOOK HELPER — wysyła wiadomość jako dany użytkownik (nick + avatar) ──
+// ─── WEBHOOK HELPER ───────────────────────────────────────────────────────────
 async function sendViaWebhook(channel, content, username, avatarURL) {
   try {
-    // Pobierz lub utwórz webhook na kanale
     const webhooks = await channel.fetchWebhooks();
     let webhook = webhooks.find(w => w.owner?.id === client.user?.id && w.name === 'SS Shop LC');
 
@@ -595,20 +651,16 @@ async function sendViaWebhook(channel, content, username, avatarURL) {
       });
     }
 
-    // Wyślij wiadomość przez webhook z nazwą i avatarem klienta
     const sent = await webhook.send({
       content,
       username:  username  || 'Klient',
       avatarURL: avatarURL || `https://cdn.discordapp.com/embed/avatars/0.png`,
     });
 
-    // webhook.send() zwraca obiekt Message — możemy dodać reakcję
-    // Pobieramy świeżą wiadomość żeby mieć pełny obiekt z .react()
     const fetchedMsg = await channel.messages.fetch(sent.id).catch(() => null);
     return fetchedMsg;
   } catch (err) {
     console.error('❌ Błąd sendViaWebhook:', err.message);
-    // Fallback — wyślij normalną wiadomością bota
     return await channel.send(content).catch(() => null);
   }
 }
@@ -628,6 +680,7 @@ client.once('ready', async () => {
   await initDB();
   await sendOrUpdateKalkulator();
   await sendOrUpdateCennik();
+  await sendOrUpdateMetody();
 });
 
 // ─── ANTI-INVITE ──────────────────────────────────────────────────────────────
@@ -670,18 +723,19 @@ client.on('messageCreate', async message => {
 });
 
 // ─── LEGIT CHECK LISTENER ────────────────────────────────────────────────────
-// Nasłuchuje czy klient wysłał +rep ręcznie, zanim timer zamknie ticket
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
 
-  const match = message.content.match(/^\+rep <@(\d+)> .+ \d+ PLN$/i);
-  if (!match) return;
+  // POPRAWKA: obsługuje zarówno <@ID> jak i <@!ID>
+  const match = message.content.match(/^\+rep <@!?(\d+)> .+ \d+ PLN$/i);
+  if (!match) {
+    console.log(`[LC DEBUG] Wiadomość nie pasuje do wzorca: "${message.content}"`);
+    return;
+  }
 
-  // Dodaj reakcję ✅ do każdej wiadomości +rep na kanale legit-check
   await message.react('✅').catch(() => {});
 
-  // Znajdź ticket powiązany z tym użytkownikiem (który jeszcze nie ma done=true)
   for (const [channelId, done] of legitCheckMap.entries()) {
     if (done) continue;
 
@@ -693,14 +747,11 @@ client.on('messageCreate', async message => {
     if (!ticketData || ticketData.rows.length === 0) continue;
     const ticket = ticketData.rows[0];
 
-    // Sprawdź czy autorem jest właściciel ticketu
     if (message.author.id !== ticket.user_id) continue;
 
-    // Oznacz jako zrobiony
     legitCheckMap.set(channelId, true);
     console.log(`✅ Legit check od użytkownika dla ticketu ${channelId}`);
 
-    // Zamknij ticket
     const ticketChannel = await client.channels.fetch(channelId).catch(() => null);
     if (ticketChannel) {
       await closeTicket(ticketChannel, message.author);
@@ -1037,6 +1088,16 @@ client.on('interactionCreate', async interaction => {
     const legitCheckChannel = await client.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
     if (!legitCheckChannel) return interaction.editReply({ content: '❌ Nie znaleziono kanału do legit checków.' });
 
+    // Pobierz dane klienta PRZED wysłaniem embed — potrzebujemy avatara
+    let clientUsername  = ticket.username || ticket.user_id;
+    let clientAvatarURL = `https://cdn.discordapp.com/embed/avatars/0.png`;
+    try {
+      const clientUser = await client.users.fetch(ticket.user_id);
+      clientUsername  = clientUser.username;
+      // POPRAWKA: forceStatic=false żeby pobrać gif jeśli klient ma animowany avatar
+      clientAvatarURL = clientUser.displayAvatarURL({ extension: 'png', size: 256, forceStatic: false });
+    } catch {}
+
     const legitCheckEmbed = new EmbedBuilder()
       .setColor(0x6a00ff)
       .setTitle('✅ Transakcja zakończona pomyślnie!')
@@ -1056,10 +1117,8 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: 'SS Shop | Legit Check' })
       .setTimestamp();
 
-    // Wiadomość trafia na TICKET — klient widzi instrukcję u siebie
     const sentMessage = await interaction.channel.send({ content: `<@${ticket.user_id}>`, embeds: [legitCheckEmbed] });
 
-    // Ustaw jako oczekujący (false = nie zrobiony jeszcze)
     legitCheckMap.set(interaction.channel.id, false);
 
     await pool.query(
@@ -1069,36 +1128,28 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ content: '✅ Wysłano wiadomość z prośbą o legit check. Ticket zostanie zamknięty po 10 minutach lub po wysłaniu legit checka przez klienta.' });
 
-    // Pobierz dane klienta już teraz (username + avatar) — zanim ticket zostanie zamknięty
-    let clientUsername  = ticket.username || ticket.user_id;
-    let clientAvatarURL = `https://cdn.discordapp.com/embed/avatars/0.png`;
-    try {
-      const clientUser = await client.users.fetch(ticket.user_id);
-      clientUsername  = clientUser.username;
-      clientAvatarURL = clientUser.displayAvatarURL({ extension: 'png', size: 128 });
-    } catch {}
-
-    // Timer 10 minut — zamknij ticket jeśli klient nie wysłał +rep
-    const channelIdSnapshot = interaction.channel.id;
-    const ticketSnapshot    = { ...ticket };
-    const usernameSnapshot  = clientUsername;
-    const avatarSnapshot    = clientAvatarURL;
+    // Snapshoty do timera
+    const channelIdSnapshot    = interaction.channel.id;
+    const ticketSnapshot       = { ...ticket };
+    const usernameSnapshot     = clientUsername;
+    const avatarSnapshot       = clientAvatarURL;
+    const pelerynkaSnapshot    = pelerynkaKupiona;
+    const kwotaSnapshot        = kwotaWydana;
 
     setTimeout(async () => {
       try {
         const done = legitCheckMap.get(channelIdSnapshot);
-        if (done) return; // Klient sam wysłał legit check
+        if (done) return;
 
-        // Wyślij +rep przez webhook — wygląda jak wiadomość od klienta (jego nick + avatar)
+        // POPRAWKA: webhook używa avatara klienta pobranego wcześniej
         const autoMsg = await sendViaWebhook(
           legitCheckChannel,
-          `+rep <@${ticketSnapshot.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN`,
+          `+rep <@${ticketSnapshot.taken_by_user_id}> ${pelerynkaSnapshot} ${kwotaSnapshot} PLN`,
           usernameSnapshot,
           avatarSnapshot
         );
         if (autoMsg) await autoMsg.react('✅').catch(() => {});
 
-        // Oznacz jako zrobiony żeby listener nie zamknął jeszcze raz
         legitCheckMap.set(channelIdSnapshot, true);
 
         const ticketCh = await client.channels.fetch(channelIdSnapshot).catch(() => null);
