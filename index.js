@@ -311,7 +311,7 @@ async function refreshAccessToken(userId) {
 // ─── KALKULATOR ────────────────────────────────────────────────────────────────
 const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
-  blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 2,  emoji: '<:blik:1498356421262053386>' },
+  blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 15,  emoji: '<:blik:1498356421262053386>' },
   btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 4,  emoji: '<:btc:1498356295408029807>' },
   ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1498356372339818747>' },
   usdt:         { nazwa: 'USDT',                   prowizja: 4,  emoji: '<:usdt:1498356339053822102>' },
@@ -530,7 +530,7 @@ function buildMetodyEmbed() {
     .addFields({
       name: '💳 Dostępne metody płatności',
       value:
-        `<:blik:1498356421262053386> **Kod BLIK** — \`2%\` prowizji\n` +
+        `<:blik:1498356421262053386> **Kod BLIK** — \`15%\` prowizji\n` +
         `📱 **BLIK na numer telefonu** — \`0%\` prowizji\n` +
         `<:psc:1498356914013339705> **PSC z paragonem** — \`13%\` prowizji\n` +
         `<:psc:1498356914013339705> **PSC bez paragonu** — \`20%\` prowizji\n` +
