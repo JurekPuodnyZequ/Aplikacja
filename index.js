@@ -47,6 +47,9 @@ const TICKET_CATEGORY_ID     = '1495432511893803060';
 const TICKET_LOG_CHANNEL_ID  = '1495432512506429465';
 const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 
+// Minimalna ranga personelu mająca dostęp do ticketów (ta i wyższe w hierarchii)
+const STAFF_BASE_ROLE_ID = '1495432509263974438';
+
 const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
 // ─── PELERYNKI ────────────────────────────────────────────────────────────────
@@ -437,6 +440,11 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
     await pool.query(`DELETE FROM tickets WHERE channel_id = $1`, [existingChannelId]);
   }
 
+  // Zbierz wszystkie rangi o pozycji >= STAFF_BASE_ROLE_ID
+  const baseRole = guild.roles.cache.get(STAFF_BASE_ROLE_ID);
+  const basePosition = baseRole ? baseRole.position : 0;
+  const staffRoles = guild.roles.cache.filter(r => r.position >= basePosition && r.id !== guild.id);
+
   const permissionOverwrites = [
     { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
     {
@@ -447,6 +455,15 @@ async function createTicketChannel(guild, user, pelerynka, cenaTekst) {
         PermissionsBitField.Flags.ReadMessageHistory,
       ],
     },
+    // Dostęp dla wszystkich rang staffu (STAFF_BASE_ROLE_ID i wyżej)
+    ...staffRoles.map(role => ({
+      id: role.id,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory,
+      ],
+    })),
   ];
 
   let channelOptions = {
@@ -989,20 +1006,22 @@ client.on('interactionCreate', async interaction => {
       .setTitle('✅ Transakcja zakończona pomyślnie!')
       .setDescription(
         `Witaj <@${ticket.user_id}>!\n\n` +
-        `Twoja transakcja została zakończona przez <@${ticket.taken_by_user_id}>.\n` +
-        `Aby potwierdzić zakup, wyślij legit check na ten kanał w formacie:\n` +
-        `\`+rep <@${ticket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN\`\n\n` +
-        `Masz na to **10 minut** — po tym czasie bot wyśle go automatycznie.`
+        `Twoja transakcja została zakończona przez <@${ticket.taken_by_user_id}>.\n\n` +
+        `Aby potwierdzić zakup, przejdź na kanał <#${LEGIT_CHECK_CHANNEL_ID}> i wyślij tam wiadomość w formacie:\n` +
+        `\`\`\`+rep <@${ticket.taken_by_user_id}> ${pelerynkaKupiona} ${kwotaWydana} PLN\`\`\`\n` +
+        `Masz na to **10 minut** — po tym czasie bot wyśle legit check automatycznie.`
       )
       .addFields(
-        { name: '🛒 Pelerynka', value: pelerynkaKupiona,                inline: true },
-        { name: '💵 Kwota',     value: `${kwotaWydana} PLN`,            inline: true },
-        { name: '👤 Obsługa',   value: `<@${ticket.taken_by_user_id}>`, inline: true }
+        { name: '🛒 Pelerynka',          value: pelerynkaKupiona,                   inline: true  },
+        { name: '💵 Kwota',              value: `${kwotaWydana} PLN`,               inline: true  },
+        { name: '👤 Obsługa',            value: `<@${ticket.taken_by_user_id}>`,    inline: true  },
+        { name: '📢 Kanał legit check',  value: `<#${LEGIT_CHECK_CHANNEL_ID}>`,     inline: false }
       )
       .setFooter({ text: 'SS Shop | Legit Check' })
       .setTimestamp();
 
-    const sentMessage = await legitCheckChannel.send({ content: `<@${ticket.user_id}>`, embeds: [legitCheckEmbed] });
+    // Wiadomość trafia na TICKET — klient widzi instrukcję u siebie
+    const sentMessage = await interaction.channel.send({ content: `<@${ticket.user_id}>`, embeds: [legitCheckEmbed] });
 
     // Ustaw jako oczekujący (false = nie zrobiony jeszcze)
     legitCheckMap.set(interaction.channel.id, false);
