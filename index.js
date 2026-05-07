@@ -1116,8 +1116,7 @@ client.on('interactionCreate', async interaction => {
         .setTimestamp();
 
       return interaction.reply({
-  embeds: [embed]
-});
+  embeds: [embed] });
 
     dropData.nagrody.push(nagroda.nazwa);
     await saveDropData(interaction.user.id, now, dropData.nagrody);
