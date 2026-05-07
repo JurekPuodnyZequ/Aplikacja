@@ -178,56 +178,6 @@ async function checkAndUpdateAutoRole(member) {
   }
 }
 
-// ─── STATUS CHANGE LOGS ───────────────────────────────────────────────────────
-client.on('presenceUpdate', async (oldPresence, newPresence) => {
-  try {
-    const member = newPresence.member;
-    if (!member || member.user.bot) return;
-
-    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-    const oldStatus =
-      oldPresence?.activities?.find(a => a.type === 4)?.state || '';
-
-    const newStatus =
-      newPresence?.activities?.find(a => a.type === 4)?.state || '';
-
-    const oldHas = oldStatus.includes(REQUIRED_STATUS_LINK);
-    const newHas = newStatus.includes(REQUIRED_STATUS_LINK);
-
-    // ─── USTAWIŁ STATUS ─────────────────────────────────────────────
-    if (!oldHas && newHas) {
-      console.log(`✅ ${member.user.tag} ustawił status`);
-
-      if (logChannel) {
-        logChannel.send(
-          `✅ **Ustawiono status**\n` +
-          `👤 ${member.user.tag}\n` +
-          `📝 ${newStatus}`
-        );
-      }
-    }
-
-    // ─── USUNĄŁ STATUS ──────────────────────────────────────────────
-    if (oldHas && !newHas) {
-      console.log(`❌ ${member.user.tag} usunął status`);
-
-      if (logChannel) {
-        logChannel.send(
-          `❌ **Usunięto status**\n` +
-          `👤 ${member.user.tag}\n` +
-          `📝 ${oldStatus}`
-        );
-      }
-    }
-
-    await checkAndUpdateAutoRole(member);
-
-  } catch (err) {
-    console.error('❌ presenceUpdate error:', err);
-  }
-});
-
 // ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
 const TICKET_METODY = {
   blik_telefon: { nazwa: 'BLIK na numer tel.',               prowizja: 0,  emoji: '📱' },
@@ -1714,6 +1664,56 @@ client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   // Poczekaj chwilę aż presence się załaduje
   setTimeout(() => checkAndUpdateAutoRole(member), 3000);
+});
+
+// ─── STATUS CHANGE LOGS ───────────────────────────────────────────────────────
+client.on('presenceUpdate', async (oldPresence, newPresence) => {
+  try {
+    const member = newPresence.member;
+    if (!member || member.user.bot) return;
+
+    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+
+    const oldStatus =
+      oldPresence?.activities?.find(a => a.type === 4)?.state || '';
+
+    const newStatus =
+      newPresence?.activities?.find(a => a.type === 4)?.state || '';
+
+    const oldHas = oldStatus.includes(REQUIRED_STATUS_LINK);
+    const newHas = newStatus.includes(REQUIRED_STATUS_LINK);
+
+    // ─── USTAWIŁ STATUS ─────────────────────────────────────────────
+    if (!oldHas && newHas) {
+      console.log(`✅ ${member.user.tag} ustawił status`);
+
+      if (logChannel) {
+        logChannel.send(
+          `✅ **Ustawiono status**\n` +
+          `👤 ${member.user.tag}\n` +
+          `📝 ${newStatus}`
+        );
+      }
+    }
+
+    // ─── USUNĄŁ STATUS ──────────────────────────────────────────────
+    if (oldHas && !newHas) {
+      console.log(`❌ ${member.user.tag} usunął status`);
+
+      if (logChannel) {
+        logChannel.send(
+          `❌ **Usunięto status**\n` +
+          `👤 ${member.user.tag}\n` +
+          `📝 ${oldStatus}`
+        );
+      }
+    }
+
+    await checkAndUpdateAutoRole(member);
+
+  } catch (err) {
+    console.error('❌ presenceUpdate error:', err);
+  }
 });
 
 // ─── LOGOWANIE ────────────────────────────────────────────────────────────────
