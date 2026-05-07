@@ -50,14 +50,18 @@ const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 const METODY_CHANNEL_ID      = '1495432511893803068';
 const METODY_MSG_KEY         = 'metody_message_id';
 
-const STAFF_BASE_ROLE_ID = '1495432509263974438';
-
-const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
+const STAFF_BASE_ROLE_ID     = '1495432509263974438';
+const SS_SHOP_EMOJI_URL      = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
 // ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
 const DROP_CHANNEL_ID    = '1501965406431219992';
 const DROP_REQUIRED_ROLE = '1501968954627854528';
 const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000; // 2 godziny
+
+// ─── AUTO-ROLA ZA TAG SERWERA LUB STATUS ──────────────────────────────────────
+// Rola nadawana gdy ktoś ma tag serwera lub status z linkiem
+const AUTO_ROLE_ID         = '1501968954627854528';
+const REQUIRED_STATUS_LINK = '.gg/yKPpzUSFpg';
 
 const DROP_NAGRODY = [
   { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', waga: 25 },
@@ -70,9 +74,6 @@ const DROP_NAGRODY = [
   { nazwa: '2zł do wydania na SSshop', emoji: '💵', waga: 4  },
   { nazwa: '3zł do wydania na SSshop', emoji: '💵', waga: 1  },
 ];
-
-// Map: userId -> { lastDrop: Date, nagrody: string[] }
-const dropCooldowns = new Map();
 
 function losujNagrode() {
   const totalWaga = DROP_NAGRODY.reduce((sum, n) => sum + n.waga, 0);
@@ -92,12 +93,68 @@ function formatCooldown(ms) {
   return `${h}h ${m}m ${s}s`;
 }
 
+// ─── SPRAWDZANIE AUTO-ROLI ─────────────────────────────────────────────────────
+function memberHasStatusLink(member) {
+  try {
+    const presence = member.presence;
+    if (!presence) return false;
+    for (const activity of presence.activities) {
+      // Custom status (type 4)
+      if (activity.type === 4) {
+        const state = activity.state || '';
+        if (state.includes(REQUIRED_STATUS_LINK)) return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function memberHasServerTag(member) {
+  try {
+    // Sprawdza czy użytkownik ma tag (clan tag) serwera
+    // Discord.js udostępnia to przez member.flags lub przez guild
+    const guild = member.guild;
+    // Sprawdź clan/tag przez API — jeśli guild ma tag to sprawdzamy
+    // member.flags zawiera CommunicationsDisabled etc, ale tag serwera
+    // to guild.nameAcronym lub customowy tag ustawiony przez guild
+    // Najlepsza metoda: sprawdź przez fetch pełnych danych membera
+    if (member.flags && member.flags.has('ClanMember')) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+async function checkAndUpdateAutoRole(member) {
+  try {
+    if (!member || member.user.bot) return;
+
+    const hasStatusLink = memberHasStatusLink(member);
+    const hasServerTag  = memberHasServerTag(member);
+    const shouldHaveRole = hasStatusLink || hasServerTag;
+    const hasRole = member.roles.cache.has(AUTO_ROLE_ID);
+
+    if (shouldHaveRole && !hasRole) {
+      await member.roles.add(AUTO_ROLE_ID);
+      console.log(`✅ Auto-rola nadana: ${member.user.username} (status: ${hasStatusLink}, tag: ${hasServerTag})`);
+    } else if (!shouldHaveRole && hasRole) {
+      // Opcjonalnie: zabierz rolę jeśli usunął tag/status
+      // await member.roles.remove(AUTO_ROLE_ID);
+      // console.log(`❌ Auto-rola zabrana: ${member.user.username}`);
+    }
+  } catch (err) {
+    console.error(`❌ Błąd checkAndUpdateAutoRole dla ${member?.user?.username}:`, err.message);
+  }
+}
+
 // ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
 const TICKET_METODY = {
-  blik_telefon: { nazwa: 'BLIK na numer tel.',    prowizja: 0,  emoji: '📱' },
-  crypto:       { nazwa: 'Crypto (BTC/ETH/LTC/USDT/USDC)', prowizja: 0, emoji: '🪙' },
-  paypal:       { nazwa: 'PayPal',                prowizja: 5,  emoji: '<:paypal:1498357795433746653>' },
-  psc:          { nazwa: 'PSC',                   prowizja: 10, emoji: '<:psc:1498356914013339705>' },
+  blik_telefon: { nazwa: 'BLIK na numer tel.',               prowizja: 0,  emoji: '📱' },
+  crypto:       { nazwa: 'Crypto (BTC/ETH/LTC/USDT/USDC)',   prowizja: 0,  emoji: '🪙' },
+  paypal:       { nazwa: 'PayPal',                            prowizja: 5,  emoji: '<:paypal:1498357795433746653>' },
+  psc:          { nazwa: 'PSC',                               prowizja: 10, emoji: '<:psc:1498356914013339705>' },
 };
 
 function obliczCeneZProwizja(cenaBaza, prowizjaProcent) {
@@ -106,41 +163,6 @@ function obliczCeneZProwizja(cenaBaza, prowizjaProcent) {
   return +(cenaBaza + prowizja).toFixed(2);
 }
 
-function formatCenaTicket(pelerynka, metodaKey) {
-  const metoda = TICKET_METODY[metodaKey];
-  if (!metoda) return 'nieznana';
-
-  if (pelerynka.key === 'zestaw') {
-    if (metoda.prowizja > 0) return `Do ustalenia + ${metoda.prowizja}% prowizji (${metoda.nazwa})`;
-    return `Do ustalenia (${metoda.nazwa})`;
-  }
-
-  const cenaBaza = pelerynka.cena;
-  if (metoda.prowizja > 0) {
-    const cenaZProwizja = obliczCeneZProwizja(cenaBaza, metoda.prowizja);
-    return `${cenaBaza} zł + ${metoda.prowizja}% = **${cenaZProwizja} zł** (${metoda.nazwa})`;
-  }
-  return `${cenaBaza} zł (${metoda.nazwa})`;
-}
-
-function formatCenaTicketKrotka(pelerynka, metodaKey) {
-  const metoda = TICKET_METODY[metodaKey];
-  if (!metoda) return 'nieznana';
-
-  if (pelerynka.key === 'zestaw') {
-    if (metoda.prowizja > 0) return `Do ustalenia + ${metoda.prowizja}% (${metoda.nazwa})`;
-    return `Do ustalenia (${metoda.nazwa})`;
-  }
-
-  const cenaBaza = pelerynka.cena;
-  if (metoda.prowizja > 0) {
-    const cenaZProwizja = obliczCeneZProwizja(cenaBaza, metoda.prowizja);
-    return `${cenaBaza} zł + ${metoda.prowizja}% = ${cenaZProwizja} zł (${metoda.nazwa})`;
-  }
-  return `${cenaBaza} zł (${metoda.nazwa})`;
-}
-
-// Buduje select menu wyboru metody płatności przy tickecie
 function buildMetodyTicketuRow(pelerynkaKey) {
   const options = Object.entries(TICKET_METODY).map(([value, data]) => {
     const label = data.prowizja > 0
@@ -168,12 +190,12 @@ function buildMetodyTicketuRow(pelerynkaKey) {
 
 // ─── PELERYNKI ────────────────────────────────────────────────────────────────
 const PELERYNKI = {
-  'home cape':    { cena: 7,   emoji: '<:HOME:1499901372974497973>',          nazwaDisplay: 'Home Cape'    },
-  'copper cape':  { cena: 10,  emoji: '<:COPPER:1499901582274330675>',        nazwaDisplay: 'Copper Cape'  },
-  'menace':       { cena: 10,  emoji: '<:MENACE:1499901418646012056>',        nazwaDisplay: 'Menace'       },
-  'purple heart': { cena: 18,  emoji: '<:PURPLE_HEART:1499901459796590693>', nazwaDisplay: 'Purple Heart' },
-  'mce cape':     { cena: 200, emoji: '<:MCE:1499901525617672322>',           nazwaDisplay: 'MCE Cape'     },
-  'zestaw':       { cena: null, emoji: '🎁',                                  nazwaDisplay: 'Zestaw'       },
+  'home cape':    { cena: 7,    emoji: '<:HOME:1499901372974497973>',          nazwaDisplay: 'Home Cape'    },
+  'copper cape':  { cena: 10,   emoji: '<:COPPER:1499901582274330675>',        nazwaDisplay: 'Copper Cape'  },
+  'menace':       { cena: 10,   emoji: '<:MENACE:1499901418646012056>',        nazwaDisplay: 'Menace'       },
+  'purple heart': { cena: 18,   emoji: '<:PURPLE_HEART:1499901459796590693>',  nazwaDisplay: 'Purple Heart' },
+  'mce cape':     { cena: 200,  emoji: '<:MCE:1499901525617672322>',           nazwaDisplay: 'MCE Cape'     },
+  'zestaw':       { cena: null, emoji: '🎁',                                   nazwaDisplay: 'Zestaw'       },
 };
 
 function znajdzPelerynke(input) {
@@ -188,7 +210,7 @@ function znajdzPelerynke(input) {
 
 // ─── GIFY POWITALNE ────────────────────────────────────────────────────────────
 const WELCOME_GIFS = [
-  { url: 'https://media.giphy.com/media/yWku98eNsMSZOEEWnC/giphy.gif', weight: 80 },
+  { url: 'https://media.giphy.com/media/yWku98eNsMSZOEEWnC/giphy.gif', weight: 80   },
   { url: 'https://media.giphy.com/media/EIXWGdjKzTFwEXSw66/giphy.gif', weight: 5.71 },
   { url: 'https://media.giphy.com/media/ozPaoquAeaMskUxhjM/giphy.gif', weight: 2.29 },
   { url: 'https://media.giphy.com/media/7NNqJw0T3cb62PMzXR/giphy.gif', weight: 1.71 },
@@ -283,7 +305,6 @@ async function initDB() {
     )
   `);
 
-  // Tabela dla systemu drop
   await pool.query(`
     CREATE TABLE IF NOT EXISTS drop_data (
       user_id    TEXT PRIMARY KEY,
@@ -373,7 +394,7 @@ async function refreshAccessToken(userId) {
 // ─── KALKULATOR ────────────────────────────────────────────────────────────────
 const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
-  blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 10,  emoji: '<:blik:1498356421262053386>' },
+  blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 10, emoji: '<:blik:1498356421262053386>' },
   btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1498356295408029807>' },
   ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1498356372339818747>' },
   usdt:         { nazwa: 'USDT',                   prowizja: 0,  emoji: '<:usdt:1498356339053822102>' },
@@ -748,7 +769,6 @@ async function closeTicket(ticketChannel, closedBy) {
     const ticket = ticketData.rows[0] || {};
 
     legitCheckMap.delete(ticketChannel.id);
-    console.log(`🧹 Usunięto legitCheckMap dla ${ticketChannel.id}`);
 
     try {
       const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID);
@@ -773,14 +793,12 @@ async function closeTicket(ticketChannel, closedBy) {
           embeds: [logEmbed],
           files: [{ attachment: transcriptBuffer, name: `transcript-${ticketChannel.name}.txt` }]
         });
-        console.log(`✅ Transcript wysłany dla ${ticketChannel.name}`);
       }
     } catch (logErr) {
       console.error('❌ Błąd wysyłania transcriptu na logi:', logErr.message);
     }
 
     await pool.query(`UPDATE tickets SET status = 'closed' WHERE channel_id = $1`, [ticketChannel.id]);
-
     await ticketChannel.send('🔒 **Ticket zostanie zamknięty za 5 sekund...**');
     await new Promise(r => setTimeout(r, 5000));
     await ticketChannel.delete().catch(() => {});
@@ -836,6 +854,44 @@ client.once('ready', async () => {
   await sendOrUpdateKalkulator();
   await sendOrUpdateCennik();
   await sendOrUpdateMetody();
+
+  // ─── CYKLICZNE SPRAWDZANIE AUTO-ROLI ────────────────────────────────────────
+  setInterval(async () => {
+    try {
+      const guild = client.guilds.cache.get(GUILD_ID);
+      if (!guild) return;
+      const members = await guild.members.fetch({ withPresences: true }).catch(() => null);
+      if (!members) return;
+      for (const [, member] of members) {
+        await checkAndUpdateAutoRole(member);
+      }
+    } catch (err) {
+      console.error('❌ Błąd interwału auto-roli:', err.message);
+    }
+  }, 5 * 60 * 1000);
+});
+
+// ─── PRESENCE UPDATE — natychmiastowe sprawdzenie po zmianie statusu ──────────
+client.on('presenceUpdate', async (oldPresence, newPresence) => {
+  try {
+    const guild = newPresence?.guild;
+    if (!guild || guild.id !== GUILD_ID) return;
+    const member = await guild.members.fetch(newPresence.userId).catch(() => null);
+    if (!member) return;
+    await checkAndUpdateAutoRole(member);
+  } catch (err) {
+    console.error('❌ Błąd presenceUpdate:', err.message);
+  }
+});
+
+// ─── GUILD MEMBER UPDATE — gdy ktoś zmieni nick/tag ──────────────────────────
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+  try {
+    if (newMember.guild.id !== GUILD_ID) return;
+    await checkAndUpdateAutoRole(newMember);
+  } catch (err) {
+    console.error('❌ Błąd guildMemberUpdate:', err.message);
+  }
 });
 
 // ─── ANTI-INVITE ──────────────────────────────────────────────────────────────
@@ -846,91 +902,10 @@ client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.guild) return;
 
-  // ── DROP: usuwanie innych wiadomości niż /drop ─────────────────────────────
+  // ── DROP CHANNEL: usuń wszystko co nie jest /drop ──────────────────────────
   if (message.channel.id === DROP_CHANNEL_ID) {
-    if (message.content.trim() !== '/drop') {
-      await message.delete().catch(() => {});
-      return;
-    }
-
-    // ── DROP: obsługa komendy /drop ──────────────────────────────────────────
-    const member = message.member;
-    const hasRole = member.roles.cache.has(DROP_REQUIRED_ROLE);
-
-    if (!hasRole) {
-      const errEmbed = new EmbedBuilder()
-        .setColor(0xFF4444)
-        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 SSshop × DROP')
-        .addFields(
-          { name: '👤 Użytkownik', value: `@${message.author.username}`, inline: false },
-          { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
-        )
-        .setFooter({ text: 'SSshop • Drop System' })
-        .setTimestamp();
-
-      await message.delete().catch(() => {});
-      const reply = await message.channel.send({ embeds: [errEmbed] });
-      setTimeout(() => reply.delete().catch(() => {}), 6000);
-      return;
-    }
-
-    // Pobierz dane z bazy
-    const dropData = await getDropData(message.author.id);
-    const now = Date.now();
-    const remaining = DROP_COOLDOWN_MS - (now - dropData.last_drop);
-
-    // Cooldown aktywny
-    if (remaining > 0) {
-      const nagrodySummary = dropData.nagrody.length > 0
-        ? dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n')
-        : null;
-
-      const embed = new EmbedBuilder()
-        .setColor(0x2B2D31)
-        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 SSshop × DROP')
-        .addFields(
-          { name: '👤 Użytkownik', value: `@${message.author.username}`, inline: false },
-          { name: '❌ Wynik', value: 'Niestety nic nie udało Ci się wylosować :/', inline: false },
-          { name: '⏳ Cooldown', value: `Spróbuj ponownie za **${formatCooldown(remaining)}**`, inline: false }
-        )
-        .setFooter({ text: 'SSshop • Drop System' })
-        .setTimestamp();
-
-      if (nagrodySummary) {
-        embed.addFields({ name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false });
-      }
-
-      await message.delete().catch(() => {});
-      const reply = await message.channel.send({ embeds: [embed] });
-      setTimeout(() => reply.delete().catch(() => {}), 12000);
-      return;
-    }
-
-    // Losowanie nagrody
-    const nagroda = losujNagrode();
-    dropData.nagrody.push(nagroda.nazwa);
-    await saveDropData(message.author.id, now, dropData.nagrody);
-
-    const nagrodySummary = dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n');
-
-    const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
-      .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-      .setTitle('🎁 SSshop × DROP')
-      .addFields(
-        { name: '👤 Użytkownik', value: `@${message.author.username}`, inline: false },
-        { name: '🎉 Wygrałeś!', value: `${nagroda.emoji} **${nagroda.nazwa}**`, inline: false },
-        { name: '⏳ Cooldown', value: `Możesz spróbować ponownie za **2 godziny**`, inline: false },
-        { name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false }
-      )
-      .setFooter({ text: 'SSshop • Drop System' })
-      .setTimestamp();
-
+    // Usuń każdą wiadomość która nie jest komendą slash (zwykłe wiadomości tekstowe)
     await message.delete().catch(() => {});
-    const reply = await message.channel.send({ embeds: [embed] });
-    setTimeout(() => reply.delete().catch(() => {}), 18000);
     return;
   }
 
@@ -974,10 +949,7 @@ client.on('messageCreate', async message => {
   if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
 
   const match = message.content.match(/^\+rep <@!?(\d+)> .+ \d+ PLN$/i);
-  if (!match) {
-    console.log(`[LC DEBUG] Wiadomość nie pasuje do wzorca: "${message.content}"`);
-    return;
-  }
+  if (!match) return;
 
   await message.react('✅').catch(() => {});
 
@@ -995,7 +967,6 @@ client.on('messageCreate', async message => {
     if (message.author.id !== ticket.user_id) continue;
 
     legitCheckMap.set(channelId, true);
-    console.log(`✅ Legit check od użytkownika dla ticketu ${channelId}`);
 
     const ticketChannel = await client.channels.fetch(channelId).catch(() => null);
     if (ticketChannel) {
@@ -1008,7 +979,83 @@ client.on('messageCreate', async message => {
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
 
-  // ── MASSROLE ─────────────────────────────────────────────────────────────
+  // ── DROP: slash command /drop ──────────────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'drop') {
+    // Sprawdź czy to właściwy kanał
+    if (interaction.channel.id !== DROP_CHANNEL_ID) {
+      return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DROP_CHANNEL_ID}>!`, flags: 64 });
+    }
+
+    // Sprawdź rangę
+    const hasRole = interaction.member.roles.cache.has(DROP_REQUIRED_ROLE);
+    if (!hasRole) {
+      const errEmbed = new EmbedBuilder()
+        .setColor(0xFF4444)
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
+        .addFields(
+          { name: '👤 Użytkownik', value: `@${interaction.user.username}`, inline: false },
+          { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
+        )
+        .setFooter({ text: 'SSshop • Drop System' })
+        .setTimestamp();
+      return interaction.reply({ embeds: [errEmbed], flags: 64 });
+    }
+
+    // Pobierz dane z bazy
+    const dropData = await getDropData(interaction.user.id);
+    const now = Date.now();
+    const remaining = DROP_COOLDOWN_MS - (now - dropData.last_drop);
+
+    // Cooldown aktywny
+    if (remaining > 0) {
+      const nagrodySummary = dropData.nagrody.length > 0
+        ? dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n')
+        : null;
+
+      const embed = new EmbedBuilder()
+        .setColor(0x2B2D31)
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
+        .addFields(
+          { name: '👤 Użytkownik', value: `@${interaction.user.username}`, inline: false },
+          { name: '❌ Wynik', value: 'Niestety nic nie udało Ci się wylosować :/', inline: false },
+          { name: '⏳ Cooldown', value: `Spróbuj ponownie za **${formatCooldown(remaining)}**`, inline: false }
+        )
+        .setFooter({ text: 'SSshop • Drop System' })
+        .setTimestamp();
+
+      if (nagrodySummary) {
+        embed.addFields({ name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false });
+      }
+
+      return interaction.reply({ embeds: [embed], flags: 64 });
+    }
+
+    // Losowanie nagrody
+    const nagroda = losujNagrode();
+    dropData.nagrody.push(nagroda.nazwa);
+    await saveDropData(interaction.user.id, now, dropData.nagrody);
+
+    const nagrodySummary = dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n');
+
+    const embed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+      .setTitle('🎁 SSshop × DROP')
+      .addFields(
+        { name: '👤 Użytkownik', value: `@${interaction.user.username}`, inline: false },
+        { name: '🎉 Wygrałeś!', value: `${nagroda.emoji} **${nagroda.nazwa}**`, inline: false },
+        { name: '⏳ Cooldown', value: `Możesz spróbować ponownie za **2 godziny**`, inline: false },
+        { name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false }
+      )
+      .setFooter({ text: 'SSshop • Drop System' })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  // ── MASSROLE ──────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
@@ -1583,6 +1630,13 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
+// ─── NOWY CZŁONEK: sprawdź auto-rolę ─────────────────────────────────────────
+client.on('guildMemberAdd', async member => {
+  if (member.guild.id !== GUILD_ID) return;
+  // Poczekaj chwilę aż presence się załaduje
+  setTimeout(() => checkAndUpdateAutoRole(member), 3000);
+});
+
 // ─── LOGOWANIE ────────────────────────────────────────────────────────────────
 client.login(BOT_TOKEN);
 
@@ -1590,6 +1644,13 @@ client.login(BOT_TOKEN);
 if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
+    // ── /drop ──────────────────────────────────────────────────────────────
+    new SlashCommandBuilder()
+      .setName('drop')
+      .setDescription('🎁 Wylosuj nagrodę w SSshop!')
+      .toJSON(),
+
+    // ── /massrole ──────────────────────────────────────────────────────────
     new SlashCommandBuilder()
       .setName('massrole')
       .setDescription('Masowe nadawanie ról (ONLY OWNER)')
@@ -1604,10 +1665,14 @@ if (process.argv.includes('--setup')) {
       .addStringOption(opt => opt.setName('role_id').setDescription('ID roli').setRequired(true))
       .addStringOption(opt => opt.setName('user_id').setDescription('ID usera (tylko single)').setRequired(false))
       .toJSON(),
+
+    // ── /setup-verify ──────────────────────────────────────────────────────
     new SlashCommandBuilder()
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
       .toJSON(),
+
+    // ── /transfer ──────────────────────────────────────────────────────────
     new SlashCommandBuilder()
       .setName('transfer')
       .setDescription('Przenosi użytkowników na podany serwer')
@@ -1624,6 +1689,7 @@ if (process.argv.includes('--setup')) {
       .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tryb id)').setRequired(false))
       .toJSON()
   ];
+
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
