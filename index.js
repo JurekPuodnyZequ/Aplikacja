@@ -64,15 +64,15 @@ const AUTO_ROLE_ID         = '1501968954627854528';
 const REQUIRED_STATUS_LINK = '.gg/yKPpzUSFpg';
 
 const DROP_NAGRODY = [
-  { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', waga: 25 },
-  { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', waga: 20 },
-  { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', waga: 10 },
-  { nazwa: '5k Anarchia',              emoji: '💰', waga: 15 },
-  { nazwa: '8k Anarchia LF',           emoji: '💰', waga: 12 },
-  { nazwa: '15k Anarchia LF',          emoji: '💰', waga: 8  },
-  { nazwa: '1zł do wydania na SSshop', emoji: '💵', waga: 5  },
-  { nazwa: '2zł do wydania na SSshop', emoji: '💵', waga: 4  },
-  { nazwa: '3zł do wydania na SSshop', emoji: '💵', waga: 1  },
+  { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', waga: 5 },
+  { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', waga: 2 },
+  { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', waga: 0.10 },
+  { nazwa: '5k Anarchia',              emoji: '💰', waga: 2.5 },
+  { nazwa: '8k Anarchia LF',           emoji: '💰', waga: 0.50 },
+  { nazwa: '15k Anarchia LF',          emoji: '💰', waga: 0.10  },
+  { nazwa: '1zł do wydania na SSshop', emoji: '💵', waga: 2  },
+  { nazwa: '2zł do wydania na SSshop', emoji: '💵', waga: 1  },
+  { nazwa: '3zł do wydania na SSshop', emoji: '💵', waga: 0.10  },
 ];
 
 function losujNagrode() {
