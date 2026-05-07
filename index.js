@@ -95,9 +95,6 @@ function formatCooldown(ms) {
 }
 
 // ─── STATUS CHECK ─────────────────────────────────────────────────────────────
-// Zwraca true jeśli user ma link w statusie.
-// Jeśli offline/invisible — zwracamy cache (nie wiemy co ma w statusie).
-// Cache aktualizowany tylko gdy user jest widocznie online.
 function memberHasStatusLink(member) {
   try {
     const presence = member.presence;
@@ -121,9 +118,6 @@ function memberHasStatusLink(member) {
 }
 
 // ─── AUTO ROLE ────────────────────────────────────────────────────────────────
-// Rola NADAWANA: user online + ma link w statusie
-// Rola ZABIERANA: user online + NIE ma linku w statusie
-// Offline/invisible: nic nie robimy (nie zabieramy roli)
 async function checkAndUpdateAutoRole(member) {
   try {
     if (!member || member.user.bot) return;
@@ -134,7 +128,6 @@ async function checkAndUpdateAutoRole(member) {
       presence.status === 'offline' ||
       presence.status === 'invisible';
 
-    // Offline/invisible — nie ruszamy roli w ogóle
     if (isOfflineOrInvisible) return;
 
     const hasStatusLink  = memberHasStatusLink(member);
@@ -895,7 +888,6 @@ client.once('ready', async () => {
   await sendOrUpdateCennik();
   await sendOrUpdateMetody();
 
-  // ─── CYKLICZNE SPRAWDZANIE AUTO-ROLI (co 30 sekund) ─────────────────────────
   setInterval(async () => {
     try {
       const guild = client.guilds.cache.get(GUILD_ID);
@@ -913,7 +905,6 @@ client.once('ready', async () => {
           presence.status === 'offline' ||
           presence.status === 'invisible';
 
-        // Offline/invisible — pomijamy, nie ruszamy roli
         if (isOffline) continue;
 
         await checkAndUpdateAutoRole(member);
@@ -921,7 +912,7 @@ client.once('ready', async () => {
     } catch (err) {
       console.error('❌ Błąd interwału auto-roli:', err.message);
     }
-  }, 30 * 1000); // co 30 sekund
+  }, 30 * 1000);
 });
 
 // ─── GUILD MEMBER UPDATE ──────────────────────────────────────────────────────
@@ -1078,7 +1069,7 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
-        return interaction.reply({ embeds: [embed], flags: 64 });
+      return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
     const nagroda = losujNagrode();
@@ -1115,14 +1106,15 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
-      return interaction.reply({
-  embeds: [embed] });
+      return interaction.reply({ embeds: [embed] });
+    }
 
+    // ── Nagroda wylosowana ──
     dropData.nagrody.push(nagroda.nazwa);
     await saveDropData(interaction.user.id, now, dropData.nagrody);
     await logDropResult(interaction, nagroda);
 
-    const embed = new EmbedBuilder()
+    const embedWin = new EmbedBuilder()
       .setColor(0x6a00ff)
       .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
       .setTitle('🎁 SSshop × DROP')
@@ -1151,16 +1143,15 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
-   return interaction.reply({
-  embeds: [embed]
-});
+    return interaction.reply({ embeds: [embedWin] });
+  }
 
   // ── MASSROLE ──────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
     }
-    await interaction.deferReply
+    await interaction.deferReply({ flags: 64 });
     const mode   = interaction.options.getString('mode');
     const roleId = interaction.options.getString('role_id');
     const userId = interaction.options.getString('user_id');
@@ -1728,6 +1719,7 @@ client.on('interactionCreate', async interaction => {
     });
     return;
   }
+
 });
 
 // ─── NOWY CZŁONEK ─────────────────────────────────────────────────────────────
@@ -1746,13 +1738,11 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
 
     const newStatus = newPresence?.status;
 
-    // Offline/invisible — nie ruszamy roli
     if (newStatus === 'offline' || newStatus === 'invisible') return;
 
     const newStatusText = newPresence?.activities?.find(a => a.type === 4)?.state || '';
     const newHasLink    = newStatusText.includes(REQUIRED_STATUS_LINK);
 
-    // Aktualizujemy cache tylko gdy user jest online
     statusLinkCache.set(member.id, newHasLink);
 
     await checkAndUpdateAutoRole(member);
