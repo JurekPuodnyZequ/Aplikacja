@@ -54,6 +54,44 @@ const STAFF_BASE_ROLE_ID = '1495432509263974438';
 
 const SS_SHOP_EMOJI_URL = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
+// ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
+const DROP_CHANNEL_ID    = '1501965406431219992';
+const DROP_REQUIRED_ROLE = '1501968954627854528';
+const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000; // 2 godziny
+
+const DROP_NAGRODY = [
+  { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', waga: 25 },
+  { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', waga: 20 },
+  { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', waga: 10 },
+  { nazwa: '5k Anarchia',              emoji: '💰', waga: 15 },
+  { nazwa: '8k Anarchia LF',           emoji: '💰', waga: 12 },
+  { nazwa: '15k Anarchia LF',          emoji: '💰', waga: 8  },
+  { nazwa: '1zł do wydania na SSshop', emoji: '💵', waga: 5  },
+  { nazwa: '2zł do wydania na SSshop', emoji: '💵', waga: 4  },
+  { nazwa: '3zł do wydania na SSshop', emoji: '💵', waga: 1  },
+];
+
+// Map: userId -> { lastDrop: Date, nagrody: string[] }
+const dropCooldowns = new Map();
+
+function losujNagrode() {
+  const totalWaga = DROP_NAGRODY.reduce((sum, n) => sum + n.waga, 0);
+  let rand = Math.random() * totalWaga;
+  for (const nagroda of DROP_NAGRODY) {
+    if (rand < nagroda.waga) return nagroda;
+    rand -= nagroda.waga;
+  }
+  return DROP_NAGRODY[0];
+}
+
+function formatCooldown(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${h}h ${m}m ${s}s`;
+}
+
 // ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
 const TICKET_METODY = {
   blik_telefon: { nazwa: 'BLIK na numer tel.',    prowizja: 0,  emoji: '📱' },
@@ -209,7 +247,6 @@ async function initDB() {
   await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_user_id TEXT;`);
   await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_username TEXT;`);
   await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS legit_check_msg_id TEXT;`);
-  // NOWE: kolumna na metodę płatności
   await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS metoda_platnosci TEXT;`);
 
   await pool.query(`
@@ -245,6 +282,16 @@ async function initDB() {
       created_at         TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  // Tabela dla systemu drop
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS drop_data (
+      user_id    TEXT PRIMARY KEY,
+      last_drop  BIGINT DEFAULT 0,
+      nagrody    TEXT DEFAULT '[]'
+    )
+  `);
+
   console.log('✅ Baza danych gotowa!');
 }
 
@@ -274,6 +321,21 @@ async function setConfig(key, value) {
     INSERT INTO bot_config (key, value) VALUES ($1,$2)
     ON CONFLICT (key) DO UPDATE SET value = $2
   `, [key, value]);
+}
+
+// ─── DROP: pomocnicze funkcje DB ───────────────────────────────────────────────
+async function getDropData(userId) {
+  const res = await pool.query('SELECT * FROM drop_data WHERE user_id = $1', [userId]);
+  if (res.rows.length === 0) return { last_drop: 0, nagrody: [] };
+  return { last_drop: Number(res.rows[0].last_drop), nagrody: JSON.parse(res.rows[0].nagrody) };
+}
+
+async function saveDropData(userId, lastDrop, nagrody) {
+  await pool.query(`
+    INSERT INTO drop_data (user_id, last_drop, nagrody)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (user_id) DO UPDATE SET last_drop = $2, nagrody = $3
+  `, [userId, lastDrop, JSON.stringify(nagrody)]);
 }
 
 // ─── TOKEN REFRESH ─────────────────────────────────────────────────────────────
@@ -762,6 +824,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildPresences,
     GatewayIntentBits.MessageContent
   ]
 });
@@ -778,9 +841,100 @@ client.once('ready', async () => {
 // ─── ANTI-INVITE ──────────────────────────────────────────────────────────────
 const DISCORD_LINK_REGEX = /(discord\.gg\/|discord\.com\/invite\/|dsc\.gg\/)/i;
 
+// ─── MESSAGE CREATE ───────────────────────────────────────────────────────────
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.guild) return;
+
+  // ── DROP: usuwanie innych wiadomości niż /drop ─────────────────────────────
+  if (message.channel.id === DROP_CHANNEL_ID) {
+    if (message.content.trim() !== '/drop') {
+      await message.delete().catch(() => {});
+      return;
+    }
+
+    // ── DROP: obsługa komendy /drop ──────────────────────────────────────────
+    const member = message.member;
+    const hasRole = member.roles.cache.has(DROP_REQUIRED_ROLE);
+
+    if (!hasRole) {
+      const errEmbed = new EmbedBuilder()
+        .setColor(0xFF4444)
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
+        .addFields(
+          { name: '👤 Użytkownik', value: `@${message.author.username}`, inline: false },
+          { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
+        )
+        .setFooter({ text: 'SSshop • Drop System' })
+        .setTimestamp();
+
+      await message.delete().catch(() => {});
+      const reply = await message.channel.send({ embeds: [errEmbed] });
+      setTimeout(() => reply.delete().catch(() => {}), 6000);
+      return;
+    }
+
+    // Pobierz dane z bazy
+    const dropData = await getDropData(message.author.id);
+    const now = Date.now();
+    const remaining = DROP_COOLDOWN_MS - (now - dropData.last_drop);
+
+    // Cooldown aktywny
+    if (remaining > 0) {
+      const nagrodySummary = dropData.nagrody.length > 0
+        ? dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n')
+        : null;
+
+      const embed = new EmbedBuilder()
+        .setColor(0x2B2D31)
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
+        .addFields(
+          { name: '👤 Użytkownik', value: `@${message.author.username}`, inline: false },
+          { name: '❌ Wynik', value: 'Niestety nic nie udało Ci się wylosować :/', inline: false },
+          { name: '⏳ Cooldown', value: `Spróbuj ponownie za **${formatCooldown(remaining)}**`, inline: false }
+        )
+        .setFooter({ text: 'SSshop • Drop System' })
+        .setTimestamp();
+
+      if (nagrodySummary) {
+        embed.addFields({ name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false });
+      }
+
+      await message.delete().catch(() => {});
+      const reply = await message.channel.send({ embeds: [embed] });
+      setTimeout(() => reply.delete().catch(() => {}), 12000);
+      return;
+    }
+
+    // Losowanie nagrody
+    const nagroda = losujNagrode();
+    dropData.nagrody.push(nagroda.nazwa);
+    await saveDropData(message.author.id, now, dropData.nagrody);
+
+    const nagrodySummary = dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n');
+
+    const embed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+      .setTitle('🎁 SSshop × DROP')
+      .addFields(
+        { name: '👤 Użytkownik', value: `@${message.author.username}`, inline: false },
+        { name: '🎉 Wygrałeś!', value: `${nagroda.emoji} **${nagroda.nazwa}**`, inline: false },
+        { name: '⏳ Cooldown', value: `Możesz spróbować ponownie za **2 godziny**`, inline: false },
+        { name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false }
+      )
+      .setFooter({ text: 'SSshop • Drop System' })
+      .setTimestamp();
+
+    await message.delete().catch(() => {});
+    const reply = await message.channel.send({ embeds: [embed] });
+    setTimeout(() => reply.delete().catch(() => {}), 18000);
+    return;
+  }
+
+  // ── ANTI-INVITE (inne kanały) ──────────────────────────────────────────────
   if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
   if (message.guild.ownerId === message.author.id) return;
   if (!DISCORD_LINK_REGEX.test(message.content)) return;
@@ -1039,11 +1193,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Po rozpoznaniu pelerynki pokaż wybór metody płatności
-    const cenaBazowa = pelerynka.key === 'zestaw'
-      ? 'Do ustalenia'
-      : `${pelerynka.cena} zł`;
-
     const opis = pelerynka.key === 'zestaw'
       ? `${pelerynka.emoji} **Zestaw** — cena do ustalenia`
       : `${pelerynka.emoji} **${pelerynka.nazwaDisplay}** — baza: \`${pelerynka.cena} zł\``;
@@ -1071,7 +1220,6 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Oblicz cenę z prowizją
     let cenaTekst, opisCena;
     if (pelerynka.key === 'zestaw') {
       if (metoda.prowizja > 0) {
@@ -1230,7 +1378,6 @@ client.on('interactionCreate', async interaction => {
     const legitCheckChannel = await client.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
     if (!legitCheckChannel) return interaction.editReply({ content: '❌ Nie znaleziono kanału do legit checków.' });
 
-    // Pobierz dane klienta
     let clientUsername  = ticket.username || ticket.user_id;
     let clientAvatarURL = `https://cdn.discordapp.com/embed/avatars/0.png`;
     try {
@@ -1239,7 +1386,6 @@ client.on('interactionCreate', async interaction => {
       clientAvatarURL = clientUser.displayAvatarURL({ extension: 'png', size: 256, forceStatic: false });
     } catch {}
 
-    // Pobierz info o metodzie płatności z bazy
     const metodaKey  = ticket.metoda_platnosci || null;
     const metoda     = metodaKey ? TICKET_METODY[metodaKey] : null;
     const metodaInfo = metoda
@@ -1277,7 +1423,6 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ content: '✅ Wysłano wiadomość z prośbą o legit check. Ticket zostanie zamknięty po 10 minutach lub po wysłaniu legit checka przez klienta.' });
 
-    // Snapshoty do timera
     const channelIdSnapshot = interaction.channel.id;
     const ticketSnapshot    = { ...ticket };
     const usernameSnapshot  = clientUsername;
