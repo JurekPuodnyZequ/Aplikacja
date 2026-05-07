@@ -1151,8 +1151,9 @@ client.on('interactionCreate', async interaction => {
       .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
-    return interaction.reply({ embeds: [embed] });
-  }
+   return interaction.reply({
+  embeds: [embed]
+});
 
   // ── MASSROLE ──────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'massrole') {
