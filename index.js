@@ -62,9 +62,6 @@ const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000; // 2 godziny
 const AUTO_ROLE_ID         = '1501968954627854528';
 const REQUIRED_STATUS_LINK = '.gg/yKPpzUSFpg';
 
-// ─── LOGI ──────────────────────────────────────────────────────────────────────
-const LOG_CHANNEL_ID = '1495432512506429465';
-
 // ─── NAGRODY ──────────────────────────────────────────────────────────────────
 const DROP_NAGRODY = [
   { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', szansa: 3.68 },
