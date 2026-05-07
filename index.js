@@ -57,7 +57,7 @@ const SS_SHOP_EMOJI_URL      = 'https://cdn.discordapp.com/emojis/14994320182521
 // ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
 const DROP_CHANNEL_ID    = '1501965406431219992';
 const DROP_REQUIRED_ROLE = '1501968954627854528';
-const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000; // 2 godziny
+const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000;
 
 // ─── AUTO-ROLA ZA TAG SERWERA LUB STATUS ──────────────────────────────────────
 const AUTO_ROLE_ID         = '1501968954627854528';
@@ -76,7 +76,6 @@ const DROP_NAGRODY = [
   { nazwa: '3zł do wydania na SSshop', emoji: '💵', szansa: 0.10 },
 ];
 
-// ─── LOSOWANIE ────────────────────────────────────────────────────────────────
 function losujNagrode() {
   const roll = Math.random() * 100;
   let current = 0;
@@ -87,7 +86,6 @@ function losujNagrode() {
   return null;
 }
 
-// ─── FORMAT COOLDOWNU ─────────────────────────────────────────────────────────
 function formatCooldown(ms) {
   const totalSec = Math.floor(ms / 1000);
   const h = Math.floor(totalSec / 3600);
@@ -97,10 +95,13 @@ function formatCooldown(ms) {
 }
 
 // ─── STATUS CHECK ─────────────────────────────────────────────────────────────
+// WAŻNE: Jeśli user jest offline/invisible — zwracamy cache, NIE aktualizujemy go.
+// Cache jest aktualizowany tylko gdy user jest widocznie online.
 function memberHasStatusLink(member) {
   try {
     const presence = member.presence;
     if (!presence || presence.status === 'offline' || presence.status === 'invisible') {
+      // Offline — nie wiemy co ma w statusie, zwróć ostatnio znany stan
       return statusLinkCache.get(member.id) ?? false;
     }
     for (const activity of presence.activities) {
@@ -112,6 +113,7 @@ function memberHasStatusLink(member) {
         }
       }
     }
+    // Online ale bez linku w statusie — aktualizujemy cache
     statusLinkCache.set(member.id, false);
     return false;
   } catch {
@@ -131,7 +133,10 @@ async function memberHasServerTag(member) {
   }
 }
 
-// ─── AUTO ROLE + LOGI ─────────────────────────────────────────────────────────
+// ─── AUTO ROLE ────────────────────────────────────────────────────────────────
+// Rola jest NADAWANA gdy: status z linkiem + tag SSsh (oboje online)
+// Rola jest ZABIERANA tylko gdy user jest ONLINE i nie spełnia warunków.
+// Gdy user jest offline/invisible — nic nie robimy.
 async function checkAndUpdateAutoRole(member) {
   try {
     if (!member || member.user.bot) return;
@@ -142,63 +147,20 @@ async function checkAndUpdateAutoRole(member) {
       presence.status === 'offline' ||
       presence.status === 'invisible';
 
-    // Jeśli offline/invisible — nie robimy absolutnie nic
+    // Offline/invisible — pomijamy całkowicie, nie ruszamy roli
     if (isOfflineOrInvisible) return;
 
-    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-    const hasStatusLink = memberHasStatusLink(member);
-    const hasServerTag  = await memberHasServerTag(member);
-
+    const hasStatusLink  = memberHasStatusLink(member);
+    const hasServerTag   = await memberHasServerTag(member);
     const shouldHaveRole = hasStatusLink && hasServerTag;
     const hasRole        = member.roles.cache.has(AUTO_ROLE_ID);
 
-    // ─── NADANIE ROLI ───────────────────────────────────────────────
     if (shouldHaveRole && !hasRole) {
       await member.roles.add(AUTO_ROLE_ID);
       console.log(`✅ Auto-rola NADANA: ${member.user.tag}`);
-
-      if (logChannel) {
-        const embed = new EmbedBuilder()
-          .setColor(0x57F287)
-          .setTitle('✅ Auto-rola nadana')
-          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-          .addFields(
-            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
-            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
-            { name: '\u200B',        value: '\u200B', inline: true },
-            { name: '📌 Status z linkiem', value: '✅ Tak', inline: true },
-            { name: '🏷️ Tag SSsh',        value: '✅ Tak', inline: true },
-            { name: '🕐 Czas',             value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
-          )
-          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
-          .setTimestamp();
-        await logChannel.send({ embeds: [embed] });
-      }
-    }
-
-    // ─── USUNIĘCIE ROLI ─────────────────────────────────────────────
-    else if (!shouldHaveRole && hasRole) {
+    } else if (!shouldHaveRole && hasRole) {
       await member.roles.remove(AUTO_ROLE_ID);
       console.log(`❌ Auto-rola USUNIĘTA: ${member.user.tag}`);
-
-      if (logChannel) {
-        const embed = new EmbedBuilder()
-          .setColor(0xED4245)
-          .setTitle('🚫 Auto-rola usunięta')
-          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-          .addFields(
-            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
-            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
-            { name: '\u200B',        value: '\u200B', inline: true },
-            { name: '📌 Status z linkiem', value: hasStatusLink ? '✅ Tak' : '❌ Nie', inline: true },
-            { name: '🏷️ Tag SSsh',        value: hasServerTag  ? '✅ Tak' : '❌ Nie', inline: true },
-            { name: '🕐 Czas',             value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
-          )
-          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
-          .setTimestamp();
-        await logChannel.send({ embeds: [embed] });
-      }
     }
 
   } catch (err) {
@@ -1102,7 +1064,6 @@ client.on('interactionCreate', async interaction => {
     const now      = Date.now();
     const remaining = DROP_COOLDOWN_MS - (now - dropData.last_drop);
 
-    // ── Cooldown aktywny ────────────────────────────────────────────────────
     if (remaining > 0) {
       const embed = new EmbedBuilder()
         .setColor(0xff4444)
@@ -1135,10 +1096,8 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
-    // ── Losowanie ───────────────────────────────────────────────────────────
     const nagroda = losujNagrode();
 
-    // Nic nie wylosowano
     if (!nagroda) {
       await saveDropData(interaction.user.id, now, dropData.nagrody);
       await logDropResult(interaction, null);
@@ -1174,7 +1133,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
-    // Wylosowano nagrodę
     dropData.nagrody.push(nagroda.nazwa);
     await saveDropData(interaction.user.id, now, dropData.nagrody);
     await logDropResult(interaction, nagroda);
@@ -1800,62 +1758,16 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
     const member = await newPresence.guild.members.fetch(newPresence.userId).catch(() => null);
     if (!member || member.user.bot) return;
 
-    const newStatus_raw = newPresence?.status;
-    const oldStatus_raw = oldPresence?.status;
+    const newStatus = newPresence?.status;
 
-    // Jeśli user właśnie poszedł offline/invisible — ignorujemy totalnie
-    if (newStatus_raw === 'offline' || newStatus_raw === 'invisible') return;
+    // Jeśli user właśnie poszedł offline/invisible — NIE ruszamy nic
+    if (newStatus === 'offline' || newStatus === 'invisible') return;
 
-    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-    const oldStatusText = oldPresence?.activities?.find(a => a.type === 4)?.state || '';
     const newStatusText = newPresence?.activities?.find(a => a.type === 4)?.state || '';
+    const newHasLink    = newStatusText.includes(REQUIRED_STATUS_LINK);
 
-    const oldHasLink = oldStatusText.includes(REQUIRED_STATUS_LINK);
-    const newHasLink = newStatusText.includes(REQUIRED_STATUS_LINK);
-
-    // ── Log: ustawiono status ──────────────────────────────────────────────
-    if (!oldHasLink && newHasLink) {
-      console.log(`✅ ${member.user.tag} ustawił status`);
-      if (logChannel) {
-        const embed = new EmbedBuilder()
-          .setColor(0x57F287)
-          .setTitle('🔗 Status z linkiem — ustawiono')
-          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-          .addFields(
-            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
-            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
-            { name: '📝 Nowy status', value: newStatusText || '(brak)', inline: false },
-            { name: '🕐 Czas',        value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
-          )
-          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
-          .setTimestamp();
-        await logChannel.send({ embeds: [embed] });
-      }
-    }
-
-    // ── Log: usunięto status ───────────────────────────────────────────────
-    if (oldHasLink && !newHasLink) {
-      // Jeśli stary status był offline — to nie jest prawdziwa zmiana, ignoruj
-      if (oldStatus_raw === 'offline' || oldStatus_raw === 'invisible') return;
-
-      console.log(`❌ ${member.user.tag} usunął status`);
-      if (logChannel) {
-        const embed = new EmbedBuilder()
-          .setColor(0xED4245)
-          .setTitle('🔗 Status z linkiem — usunięto')
-          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
-          .addFields(
-            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
-            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
-            { name: '📝 Stary status', value: oldStatusText || '(brak)', inline: false },
-            { name: '🕐 Czas',         value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
-          )
-          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
-          .setTimestamp();
-        await logChannel.send({ embeds: [embed] });
-      }
-    }
+    // Aktualizujemy cache wyłącznie gdy user jest online
+    statusLinkCache.set(member.id, newHasLink);
 
     await checkAndUpdateAutoRole(member);
 
