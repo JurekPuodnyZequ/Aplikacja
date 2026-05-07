@@ -1042,7 +1042,7 @@ client.on('interactionCreate', async interaction => {
         )
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
-      return interaction.reply({ embeds: [errEmbed], flags: 64 });
+      return interaction.reply({ embeds: [errEmbed] });
     }
 
     const dropData = await getDropData(interaction.user.id);
@@ -1063,14 +1063,14 @@ client.on('interactionCreate', async interaction => {
           },
           { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
-          { name: '❌ Wynik', value: 'Cooldown aktywny — poczekaj chwilę!', inline: false },
+          { name: '❌ Wynik', value: 'Masz Cooldown! — poczekaj 2h!', inline: false },
           {
             name: '⏳ Dostępny za',
             value: `<t:${Math.floor((dropData.last_drop + DROP_COOLDOWN_MS) / 1000)}:R>`,
             inline: false
           },
           ...(dropData.nagrody.length > 0 ? [{
-            name: '🎟️ Twoje nagrody',
+            name: '💸 Twoje nagrody',
             value: dropData.nagrody.map(n => `> 🎫 ${n}`).join('\n'),
             inline: false
           }] : [])
@@ -1078,7 +1078,7 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
-      return interaction.reply({ embeds: [embed], flags: 64 });
+        return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
     const nagroda = losujNagrode();
@@ -1115,7 +1115,7 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
-      return interaction.reply({ embeds: [embed], flags: 64 });
+      return interaction.reply({ embeds: [embed]
     }
 
     dropData.nagrody.push(nagroda.nazwa);
@@ -1159,7 +1159,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Brak dostępu.', flags: 64 });
     }
-    await interaction.deferReply({ flags: 64 });
+    await interaction.deferReply
     const mode   = interaction.options.getString('mode');
     const roleId = interaction.options.getString('role_id');
     const userId = interaction.options.getString('user_id');
