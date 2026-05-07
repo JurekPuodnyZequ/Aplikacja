@@ -68,11 +68,9 @@ const DROP_NAGRODY = [
   { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', szansa: 3.68 },
   { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', szansa: 1.472 },
   { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', szansa: 0.10 },
-
   { nazwa: '5k Anarchia',              emoji: '💰', szansa: 1.84 },
   { nazwa: '8k Anarchia LF',           emoji: '💰', szansa: 0.50 },
   { nazwa: '15k Anarchia LF',          emoji: '💰', szansa: 0.10 },
-
   { nazwa: '1zł do wydania na SSshop', emoji: '💵', szansa: 1.472 },
   { nazwa: '2zł do wydania na SSshop', emoji: '💵', szansa: 0.736 },
   { nazwa: '3zł do wydania na SSshop', emoji: '💵', szansa: 0.10 },
@@ -82,12 +80,10 @@ const DROP_NAGRODY = [
 function losujNagrode() {
   const roll = Math.random() * 100;
   let current = 0;
-
   for (const nagroda of DROP_NAGRODY) {
     current += nagroda.szansa;
     if (roll <= current) return nagroda;
   }
-
   return null;
 }
 
@@ -97,7 +93,6 @@ function formatCooldown(ms) {
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-
   return `${h}h ${m}m ${s}s`;
 }
 
@@ -105,11 +100,9 @@ function formatCooldown(ms) {
 function memberHasStatusLink(member) {
   try {
     const presence = member.presence;
-
     if (!presence || presence.status === 'offline' || presence.status === 'invisible') {
       return statusLinkCache.get(member.id) ?? false;
     }
-
     for (const activity of presence.activities) {
       if (activity.type === 4) {
         const state = activity.state || '';
@@ -119,7 +112,6 @@ function memberHasStatusLink(member) {
         }
       }
     }
-
     statusLinkCache.set(member.id, false);
     return false;
   } catch {
@@ -130,10 +122,8 @@ function memberHasStatusLink(member) {
 // ─── TAG CHECK ────────────────────────────────────────────────────────────────
 async function memberHasServerTag(member) {
   try {
-    // Zawsze rób świeży fetch usera żeby mieć aktualne dane clan tagu
     const freshUser = await member.user.fetch(true).catch(() => member.user);
     const clanTag   = freshUser?.clan?.tag ?? member.user?.clan?.tag;
-
     if (clanTag === 'SSsh') return true;
     return false;
   } catch {
@@ -146,19 +136,16 @@ async function checkAndUpdateAutoRole(member) {
   try {
     if (!member || member.user.bot) return;
 
-    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
-
     const presence = member.presence;
     const isOfflineOrInvisible =
       !presence ||
       presence.status === 'offline' ||
       presence.status === 'invisible';
 
-    // Jeśli niedostępny — nie ruszamy roli wcale
-    if (isOfflineOrInvisible) {
-      console.log(`⏸️ Auto-rola POMINIĘTA (offline/invisible): ${member.user.tag}`);
-      return;
-    }
+    // Jeśli offline/invisible — nie robimy absolutnie nic
+    if (isOfflineOrInvisible) return;
+
+    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
 
     const hasStatusLink = memberHasStatusLink(member);
     const hasServerTag  = await memberHasServerTag(member);
@@ -170,13 +157,23 @@ async function checkAndUpdateAutoRole(member) {
     if (shouldHaveRole && !hasRole) {
       await member.roles.add(AUTO_ROLE_ID);
       console.log(`✅ Auto-rola NADANA: ${member.user.tag}`);
+
       if (logChannel) {
-        logChannel.send(
-          `🎉 **Auto-rola nadana**\n` +
-          `👤 ${member.user.tag}\n` +
-          `📌 Status z linkiem: ${hasStatusLink}\n` +
-          `🏷️ Tag serwera: ${hasServerTag}`
-        );
+        const embed = new EmbedBuilder()
+          .setColor(0x57F287)
+          .setTitle('✅ Auto-rola nadana')
+          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
+          .addFields(
+            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
+            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
+            { name: '\u200B',        value: '\u200B', inline: true },
+            { name: '📌 Status z linkiem', value: '✅ Tak', inline: true },
+            { name: '🏷️ Tag SSsh',        value: '✅ Tak', inline: true },
+            { name: '🕐 Czas',             value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+          )
+          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
+          .setTimestamp();
+        await logChannel.send({ embeds: [embed] });
       }
     }
 
@@ -184,13 +181,23 @@ async function checkAndUpdateAutoRole(member) {
     else if (!shouldHaveRole && hasRole) {
       await member.roles.remove(AUTO_ROLE_ID);
       console.log(`❌ Auto-rola USUNIĘTA: ${member.user.tag}`);
+
       if (logChannel) {
-        logChannel.send(
-          `🚫 **Auto-rola usunięta**\n` +
-          `👤 ${member.user.tag}\n` +
-          `📌 Status z linkiem: ${hasStatusLink}\n` +
-          `🏷️ Tag serwera: ${hasServerTag}`
-        );
+        const embed = new EmbedBuilder()
+          .setColor(0xED4245)
+          .setTitle('🚫 Auto-rola usunięta')
+          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
+          .addFields(
+            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
+            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
+            { name: '\u200B',        value: '\u200B', inline: true },
+            { name: '📌 Status z linkiem', value: hasStatusLink ? '✅ Tak' : '❌ Nie', inline: true },
+            { name: '🏷️ Tag SSsh',        value: hasServerTag  ? '✅ Tak' : '❌ Nie', inline: true },
+            { name: '🕐 Czas',             value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+          )
+          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
+          .setTimestamp();
+        await logChannel.send({ embeds: [embed] });
       }
     }
 
@@ -198,6 +205,45 @@ async function checkAndUpdateAutoRole(member) {
     console.error(`❌ Błąd auto-roli ${member?.user?.tag}:`, err);
   }
 }
+
+// ─── DROP LOG ─────────────────────────────────────────────────────────────────
+async function logDropResult(interaction, nagroda) {
+  try {
+    const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (!logChannel) return;
+
+    const embed = new EmbedBuilder()
+      .setColor(nagroda ? 0x6a00ff : 0x2B2D31)
+      .setTitle(nagroda ? '🎁 Drop — nagroda wylosowana!' : '🎁 Drop — brak nagrody')
+      .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+      .addFields(
+        {
+          name: '👤 Użytkownik',
+          value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
+          inline: true
+        },
+        { name: '🆔 ID',  value: `\`${interaction.user.id}\``, inline: true },
+        { name: '\u200B', value: '\u200B', inline: true },
+        {
+          name: '🎉 Nagroda',
+          value: nagroda ? `${nagroda.emoji} **${nagroda.nazwa}**` : '❌ Nic nie wylosowano',
+          inline: false
+        },
+        {
+          name: '🕐 Czas',
+          value: `<t:${Math.floor(Date.now() / 1000)}:F>`,
+          inline: false
+        }
+      )
+      .setFooter({ text: 'SS Shop | Drop System', iconURL: SS_SHOP_EMOJI_URL })
+      .setTimestamp();
+
+    await logChannel.send({ embeds: [embed] });
+  } catch (err) {
+    console.error('❌ Błąd logDropResult:', err.message);
+  }
+}
+
 // ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
 const TICKET_METODY = {
   blik_telefon: { nazwa: 'BLIK na numer tel.',               prowizja: 0,  emoji: '📱' },
@@ -353,7 +399,6 @@ async function initDB() {
       created_at         TIMESTAMP DEFAULT NOW()
     )
   `);
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS drop_data (
       user_id    TEXT PRIMARY KEY,
@@ -393,7 +438,6 @@ async function setConfig(key, value) {
   `, [key, value]);
 }
 
-// ─── DROP: pomocnicze funkcje DB ───────────────────────────────────────────────
 async function getDropData(userId) {
   const res = await pool.query('SELECT * FROM drop_data WHERE user_id = $1', [userId]);
   if (res.rows.length === 0) return { last_drop: 0, nagrody: [] };
@@ -909,9 +953,22 @@ client.once('ready', async () => {
     try {
       const guild = client.guilds.cache.get(GUILD_ID);
       if (!guild) return;
+
       const members = await guild.members.fetch({ withPresences: true }).catch(() => null);
       if (!members) return;
+
       for (const [, member] of members) {
+        if (member.user.bot) continue;
+
+        const presence = member.presence;
+        const isOffline =
+          !presence ||
+          presence.status === 'offline' ||
+          presence.status === 'invisible';
+
+        // Pomijamy offline — nie ruszamy roli
+        if (isOffline) continue;
+
         await checkAndUpdateAutoRole(member);
       }
     } catch (err) {
@@ -920,7 +977,7 @@ client.once('ready', async () => {
   }, 5 * 60 * 1000);
 });
 
-// ─── GUILD MEMBER UPDATE — gdy ktoś zmieni nick/tag ──────────────────────────
+// ─── GUILD MEMBER UPDATE ──────────────────────────────────────────────────────
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
   try {
     if (newMember.guild.id !== GUILD_ID) return;
@@ -938,14 +995,11 @@ client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.guild) return;
 
-  // ── DROP CHANNEL: usuń wszystko co nie jest /drop ──────────────────────────
   if (message.channel.id === DROP_CHANNEL_ID) {
-    // Usuń każdą wiadomość która nie jest komendą slash (zwykłe wiadomości tekstowe)
     await message.delete().catch(() => {});
     return;
   }
 
-  // ── ANTI-INVITE (inne kanały) ──────────────────────────────────────────────
   if (message.member.permissions.has(PermissionsBitField.Flags.Administrator)) return;
   if (message.guild.ownerId === message.author.id) return;
   if (!DISCORD_LINK_REGEX.test(message.content)) return;
@@ -1087,6 +1141,7 @@ client.on('interactionCreate', async interaction => {
     // Nic nie wylosowano
     if (!nagroda) {
       await saveDropData(interaction.user.id, now, dropData.nagrody);
+      await logDropResult(interaction, null);
 
       const embed = new EmbedBuilder()
         .setColor(0x2B2D31)
@@ -1122,6 +1177,7 @@ client.on('interactionCreate', async interaction => {
     // Wylosowano nagrodę
     dropData.nagrody.push(nagroda.nazwa);
     await saveDropData(interaction.user.id, now, dropData.nagrody);
+    await logDropResult(interaction, nagroda);
 
     const embed = new EmbedBuilder()
       .setColor(0x6a00ff)
@@ -1730,13 +1786,13 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// ─── NOWY CZŁONEK: sprawdź auto-rolę ─────────────────────────────────────────
+// ─── NOWY CZŁONEK ─────────────────────────────────────────────────────────────
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   setTimeout(() => checkAndUpdateAutoRole(member), 3000);
 });
 
-// ─── PRESENCE UPDATE — status logi + auto-rola ────────────────────────────────
+// ─── PRESENCE UPDATE ──────────────────────────────────────────────────────────
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
   try {
     if (!newPresence?.guild || newPresence.guild.id !== GUILD_ID) return;
@@ -1744,33 +1800,60 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
     const member = await newPresence.guild.members.fetch(newPresence.userId).catch(() => null);
     if (!member || member.user.bot) return;
 
+    const newStatus_raw = newPresence?.status;
+    const oldStatus_raw = oldPresence?.status;
+
+    // Jeśli user właśnie poszedł offline/invisible — ignorujemy totalnie
+    if (newStatus_raw === 'offline' || newStatus_raw === 'invisible') return;
+
     const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    const oldStatus = oldPresence?.activities?.find(a => a.type === 4)?.state || '';
-    const newStatus = newPresence?.activities?.find(a => a.type === 4)?.state || '';
+    const oldStatusText = oldPresence?.activities?.find(a => a.type === 4)?.state || '';
+    const newStatusText = newPresence?.activities?.find(a => a.type === 4)?.state || '';
 
-    const oldHas = oldStatus.includes(REQUIRED_STATUS_LINK);
-    const newHas = newStatus.includes(REQUIRED_STATUS_LINK);
+    const oldHasLink = oldStatusText.includes(REQUIRED_STATUS_LINK);
+    const newHasLink = newStatusText.includes(REQUIRED_STATUS_LINK);
 
-    if (!oldHas && newHas) {
+    // ── Log: ustawiono status ──────────────────────────────────────────────
+    if (!oldHasLink && newHasLink) {
       console.log(`✅ ${member.user.tag} ustawił status`);
       if (logChannel) {
-        logChannel.send(
-          `✅ **Ustawiono status**\n` +
-          `👤 ${member.user.tag}\n` +
-          `📝 ${newStatus}`
-        );
+        const embed = new EmbedBuilder()
+          .setColor(0x57F287)
+          .setTitle('🔗 Status z linkiem — ustawiono')
+          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
+          .addFields(
+            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
+            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
+            { name: '📝 Nowy status', value: newStatusText || '(brak)', inline: false },
+            { name: '🕐 Czas',        value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+          )
+          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
+          .setTimestamp();
+        await logChannel.send({ embeds: [embed] });
       }
     }
 
-    if (oldHas && !newHas) {
+    // ── Log: usunięto status ───────────────────────────────────────────────
+    if (oldHasLink && !newHasLink) {
+      // Jeśli stary status był offline — to nie jest prawdziwa zmiana, ignoruj
+      if (oldStatus_raw === 'offline' || oldStatus_raw === 'invisible') return;
+
       console.log(`❌ ${member.user.tag} usunął status`);
       if (logChannel) {
-        logChannel.send(
-          `❌ **Usunięto status**\n` +
-          `👤 ${member.user.tag}\n` +
-          `📝 ${oldStatus}`
-        );
+        const embed = new EmbedBuilder()
+          .setColor(0xED4245)
+          .setTitle('🔗 Status z linkiem — usunięto')
+          .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
+          .addFields(
+            { name: '👤 Użytkownik', value: `${member.user.globalName || member.user.username} (\`${member.user.username}\`)`, inline: true },
+            { name: '🆔 ID',         value: `\`${member.user.id}\``, inline: true },
+            { name: '📝 Stary status', value: oldStatusText || '(brak)', inline: false },
+            { name: '🕐 Czas',         value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+          )
+          .setFooter({ text: 'SS Shop | Auto-rola', iconURL: SS_SHOP_EMOJI_URL })
+          .setTimestamp();
+        await logChannel.send({ embeds: [embed] });
       }
     }
 
@@ -1788,13 +1871,10 @@ client.login(BOT_TOKEN);
 if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
-    // ── /drop ──────────────────────────────────────────────────────────────
     new SlashCommandBuilder()
       .setName('drop')
       .setDescription('🎁 Wylosuj nagrodę w SSshop!')
       .toJSON(),
-
-    // ── /massrole ──────────────────────────────────────────────────────────
     new SlashCommandBuilder()
       .setName('massrole')
       .setDescription('Masowe nadawanie ról (ONLY OWNER)')
@@ -1809,14 +1889,10 @@ if (process.argv.includes('--setup')) {
       .addStringOption(opt => opt.setName('role_id').setDescription('ID roli').setRequired(true))
       .addStringOption(opt => opt.setName('user_id').setDescription('ID usera (tylko single)').setRequired(false))
       .toJSON(),
-
-    // ── /setup-verify ──────────────────────────────────────────────────────
     new SlashCommandBuilder()
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
       .toJSON(),
-
-    // ── /transfer ──────────────────────────────────────────────────────────
     new SlashCommandBuilder()
       .setName('transfer')
       .setDescription('Przenosi użytkowników na podany serwer')
