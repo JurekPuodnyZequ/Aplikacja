@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const legitCheckMap = new Map();
+const statusLinkCache = new Map(); 
 const express = require('express');
 const axios = require('axios');
 const { Pool } = require('pg');
@@ -53,7 +54,7 @@ const METODY_MSG_KEY         = 'metody_message_id';
 const STAFF_BASE_ROLE_ID     = '1495432509263974438';
 const SS_SHOP_EMOJI_URL      = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
- // ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
+// ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
 const DROP_CHANNEL_ID    = '1501965406431219992';
 const DROP_REQUIRED_ROLE = '1501968954627854528';
 const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000; // 2 godziny
@@ -104,26 +105,37 @@ function formatCooldown(ms) {
 function memberHasStatusLink(member) {
   try {
     const presence = member.presence;
-    if (!presence) return false;
+
+    if (!presence || presence.status === 'offline' || presence.status === 'invisible') {
+      return statusLinkCache.get(member.id) ?? false;
+    }
 
     for (const activity of presence.activities) {
       if (activity.type === 4) {
         const state = activity.state || '';
-        if (state.includes(REQUIRED_STATUS_LINK)) return true;
+        if (state.includes(REQUIRED_STATUS_LINK)) {
+          statusLinkCache.set(member.id, true);
+          return true;
+        }
       }
     }
 
+    statusLinkCache.set(member.id, false);
     return false;
   } catch {
-    return false;
+    return statusLinkCache.get(member.id) ?? false;
   }
 }
 
 // ─── TAG CHECK ────────────────────────────────────────────────────────────────
-function memberHasServerTag(member) {
+async function memberHasServerTag(member) {
   try {
-    const clanTag = member.user?.clan?.tag;
-    return clanTag === 'SSsh';
+    // Zawsze rób świeży fetch usera żeby mieć aktualne dane clan tagu
+    const freshUser = await member.user.fetch(true).catch(() => member.user);
+    const clanTag   = freshUser?.clan?.tag ?? member.user?.clan?.tag;
+
+    if (clanTag === 'SSsh') return true;
+    return false;
   } catch {
     return false;
   }
@@ -136,24 +148,34 @@ async function checkAndUpdateAutoRole(member) {
 
     const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
 
+    const presence = member.presence;
+    const isOfflineOrInvisible =
+      !presence ||
+      presence.status === 'offline' ||
+      presence.status === 'invisible';
+
+    // Jeśli niedostępny — nie ruszamy roli wcale
+    if (isOfflineOrInvisible) {
+      console.log(`⏸️ Auto-rola POMINIĘTA (offline/invisible): ${member.user.tag}`);
+      return;
+    }
+
     const hasStatusLink = memberHasStatusLink(member);
-    const hasServerTag  = memberHasServerTag(member);
-    
+    const hasServerTag  = await memberHasServerTag(member);
+
     const shouldHaveRole = hasStatusLink && hasServerTag;
-    const hasRole = member.roles.cache.has(AUTO_ROLE_ID);
+    const hasRole        = member.roles.cache.has(AUTO_ROLE_ID);
 
     // ─── NADANIE ROLI ───────────────────────────────────────────────
     if (shouldHaveRole && !hasRole) {
       await member.roles.add(AUTO_ROLE_ID);
-
       console.log(`✅ Auto-rola NADANA: ${member.user.tag}`);
-
       if (logChannel) {
         logChannel.send(
           `🎉 **Auto-rola nadana**\n` +
           `👤 ${member.user.tag}\n` +
-          `📌 Status: ${hasStatusLink}\n` +
-          `🏷️ Tag: ${hasServerTag}`
+          `📌 Status z linkiem: ${hasStatusLink}\n` +
+          `🏷️ Tag serwera: ${hasServerTag}`
         );
       }
     }
@@ -161,14 +183,13 @@ async function checkAndUpdateAutoRole(member) {
     // ─── USUNIĘCIE ROLI ─────────────────────────────────────────────
     else if (!shouldHaveRole && hasRole) {
       await member.roles.remove(AUTO_ROLE_ID);
-
       console.log(`❌ Auto-rola USUNIĘTA: ${member.user.tag}`);
-
       if (logChannel) {
         logChannel.send(
           `🚫 **Auto-rola usunięta**\n` +
           `👤 ${member.user.tag}\n` +
-          `📌 Powód: brak statusu/tagu`
+          `📌 Status z linkiem: ${hasStatusLink}\n` +
+          `🏷️ Tag serwera: ${hasServerTag}`
         );
       }
     }
@@ -177,7 +198,6 @@ async function checkAndUpdateAutoRole(member) {
     console.error(`❌ Błąd auto-roli ${member?.user?.tag}:`, err);
   }
 }
-
 // ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
 const TICKET_METODY = {
   blik_telefon: { nazwa: 'BLIK na numer tel.',               prowizja: 0,  emoji: '📱' },
@@ -1010,75 +1030,139 @@ client.on('interactionCreate', async interaction => {
 
   // ── DROP: slash command /drop ──────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'drop') {
-    // Sprawdź czy to właściwy kanał
+
     if (interaction.channel.id !== DROP_CHANNEL_ID) {
       return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DROP_CHANNEL_ID}>!`, flags: 64 });
     }
 
-    // Sprawdź rangę
     const hasRole = interaction.member.roles.cache.has(DROP_REQUIRED_ROLE);
     if (!hasRole) {
       const errEmbed = new EmbedBuilder()
         .setColor(0xFF4444)
         .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
         .setTitle('🎁 SSshop × DROP')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          { name: '👤 Użytkownik', value: `@${interaction.user.username}`, inline: false },
+          {
+            name: '👤 Użytkownik',
+            value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
+            inline: true
+          },
+          { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
+          { name: '\u200B', value: '\u200B', inline: true },
           { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
         )
-        .setFooter({ text: 'SSshop • Drop System' })
+        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
       return interaction.reply({ embeds: [errEmbed], flags: 64 });
     }
 
-    // Pobierz dane z bazy
     const dropData = await getDropData(interaction.user.id);
-    const now = Date.now();
+    const now      = Date.now();
     const remaining = DROP_COOLDOWN_MS - (now - dropData.last_drop);
 
-    // Cooldown aktywny
+    // ── Cooldown aktywny ────────────────────────────────────────────────────
     if (remaining > 0) {
-      const nagrodySummary = dropData.nagrody.length > 0
-        ? dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n')
-        : null;
+      const embed = new EmbedBuilder()
+        .setColor(0xff4444)
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .addFields(
+          {
+            name: '👤 Użytkownik',
+            value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
+            inline: true
+          },
+          { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
+          { name: '\u200B', value: '\u200B', inline: true },
+          { name: '❌ Wynik', value: 'Cooldown aktywny — poczekaj chwilę!', inline: false },
+          {
+            name: '⏳ Dostępny za',
+            value: `<t:${Math.floor((dropData.last_drop + DROP_COOLDOWN_MS) / 1000)}:R>`,
+            inline: false
+          },
+          ...(dropData.nagrody.length > 0 ? [{
+            name: '🎟️ Twoje nagrody',
+            value: dropData.nagrody.map(n => `> 🎫 ${n}`).join('\n'),
+            inline: false
+          }] : [])
+        )
+        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed], flags: 64 });
+    }
+
+    // ── Losowanie ───────────────────────────────────────────────────────────
+    const nagroda = losujNagrode();
+
+    // Nic nie wylosowano
+    if (!nagroda) {
+      await saveDropData(interaction.user.id, now, dropData.nagrody);
 
       const embed = new EmbedBuilder()
         .setColor(0x2B2D31)
         .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
         .setTitle('🎁 SSshop × DROP')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          { name: '👤 Użytkownik', value: `@${interaction.user.username}`, inline: false },
-          { name: '❌ Wynik', value: 'Niestety nic nie udało Ci się wylosować :/', inline: false },
-          { name: '⏳ Cooldown', value: `Spróbuj ponownie za **${formatCooldown(remaining)}**`, inline: false }
+          {
+            name: '👤 Użytkownik',
+            value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
+            inline: true
+          },
+          { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
+          { name: '\u200B', value: '\u200B', inline: true },
+          { name: '❌ Wynik', value: 'Tym razem nic się nie trafiło. Spróbuj za 2 godziny!', inline: false },
+          {
+            name: '⏳ Następny drop',
+            value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`,
+            inline: false
+          },
+          ...(dropData.nagrody.length > 0 ? [{
+            name: '🎟️ Twoje nagrody',
+            value: dropData.nagrody.map(n => `> 🎫 ${n}`).join('\n'),
+            inline: false
+          }] : [])
         )
-        .setFooter({ text: 'SSshop • Drop System' })
+        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
-
-      if (nagrodySummary) {
-        embed.addFields({ name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false });
-      }
 
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
-    // Losowanie nagrody
-    const nagroda = losujNagrode();
+    // Wylosowano nagrodę
     dropData.nagrody.push(nagroda.nazwa);
     await saveDropData(interaction.user.id, now, dropData.nagrody);
 
-    const nagrodySummary = dropData.nagrody.map(n => `• 🎫 ${n}`).join('\n');
-
     const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
+      .setColor(0x6a00ff)
       .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
       .setTitle('🎁 SSshop × DROP')
+      .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
       .addFields(
-        { name: '👤 Użytkownik', value: `@${interaction.user.username}`, inline: false },
-        { name: '🎉 Wygrałeś!', value: `${nagroda.emoji} **${nagroda.nazwa}**`, inline: false },
-        { name: '⏳ Cooldown', value: `Możesz spróbować ponownie za **2 godziny**`, inline: false },
-        { name: '🎟️ Twoje obecne nagrody', value: nagrodySummary, inline: false }
+        {
+          name: '👤 Użytkownik',
+          value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
+          inline: true
+        },
+        { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
+        { name: '\u200B', value: '\u200B', inline: true },
+        { name: '🎉 Nagroda', value: `${nagroda.emoji} **${nagroda.nazwa}**`, inline: true },
+        {
+          name: '⏳ Następny drop',
+          value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`,
+          inline: true
+        },
+        { name: '\u200B', value: '\u200B', inline: true },
+        {
+          name: '🎟️ Wszystkie nagrody',
+          value: dropData.nagrody.map(n => `> 🎫 ${n}`).join('\n'),
+          inline: false
+        }
       )
-      .setFooter({ text: 'SSshop • Drop System' })
+      .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     return interaction.reply({ embeds: [embed] });
