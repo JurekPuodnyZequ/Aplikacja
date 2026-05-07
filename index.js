@@ -59,7 +59,7 @@ const DROP_CHANNEL_ID    = '1501965406431219992';
 const DROP_REQUIRED_ROLE = '1501968954627854528';
 const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000;
 
-// ─── AUTO-ROLA ZA TAG SERWERA LUB STATUS ──────────────────────────────────────
+// ─── AUTO-ROLA ZA STATUS ──────────────────────────────────────────────────────
 const AUTO_ROLE_ID         = '1501968954627854528';
 const REQUIRED_STATUS_LINK = '.gg/yKPpzUSFpg';
 
@@ -95,13 +95,13 @@ function formatCooldown(ms) {
 }
 
 // ─── STATUS CHECK ─────────────────────────────────────────────────────────────
-// WAŻNE: Jeśli user jest offline/invisible — zwracamy cache, NIE aktualizujemy go.
-// Cache jest aktualizowany tylko gdy user jest widocznie online.
+// Zwraca true jeśli user ma link w statusie.
+// Jeśli offline/invisible — zwracamy cache (nie wiemy co ma w statusie).
+// Cache aktualizowany tylko gdy user jest widocznie online.
 function memberHasStatusLink(member) {
   try {
     const presence = member.presence;
     if (!presence || presence.status === 'offline' || presence.status === 'invisible') {
-      // Offline — nie wiemy co ma w statusie, zwróć ostatnio znany stan
       return statusLinkCache.get(member.id) ?? false;
     }
     for (const activity of presence.activities) {
@@ -113,7 +113,6 @@ function memberHasStatusLink(member) {
         }
       }
     }
-    // Online ale bez linku w statusie — aktualizujemy cache
     statusLinkCache.set(member.id, false);
     return false;
   } catch {
@@ -121,22 +120,10 @@ function memberHasStatusLink(member) {
   }
 }
 
-// ─── TAG CHECK ────────────────────────────────────────────────────────────────
-async function memberHasServerTag(member) {
-  try {
-    const freshUser = await member.user.fetch(true).catch(() => member.user);
-    const clanTag   = freshUser?.clan?.tag ?? member.user?.clan?.tag;
-    if (clanTag === 'SSsh') return true;
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 // ─── AUTO ROLE ────────────────────────────────────────────────────────────────
-// Rola jest NADAWANA gdy: status z linkiem + tag SSsh (oboje online)
-// Rola jest ZABIERANA tylko gdy user jest ONLINE i nie spełnia warunków.
-// Gdy user jest offline/invisible — nic nie robimy.
+// Rola NADAWANA: user online + ma link w statusie
+// Rola ZABIERANA: user online + NIE ma linku w statusie
+// Offline/invisible: nic nie robimy (nie zabieramy roli)
 async function checkAndUpdateAutoRole(member) {
   try {
     if (!member || member.user.bot) return;
@@ -147,18 +134,16 @@ async function checkAndUpdateAutoRole(member) {
       presence.status === 'offline' ||
       presence.status === 'invisible';
 
-    // Offline/invisible — pomijamy całkowicie, nie ruszamy roli
+    // Offline/invisible — nie ruszamy roli w ogóle
     if (isOfflineOrInvisible) return;
 
     const hasStatusLink  = memberHasStatusLink(member);
-    const hasServerTag   = await memberHasServerTag(member);
-    const shouldHaveRole = hasStatusLink && hasServerTag;
     const hasRole        = member.roles.cache.has(AUTO_ROLE_ID);
 
-    if (shouldHaveRole && !hasRole) {
+    if (hasStatusLink && !hasRole) {
       await member.roles.add(AUTO_ROLE_ID);
       console.log(`✅ Auto-rola NADANA: ${member.user.tag}`);
-    } else if (!shouldHaveRole && hasRole) {
+    } else if (!hasStatusLink && hasRole) {
       await member.roles.remove(AUTO_ROLE_ID);
       console.log(`❌ Auto-rola USUNIĘTA: ${member.user.tag}`);
     }
@@ -910,7 +895,7 @@ client.once('ready', async () => {
   await sendOrUpdateCennik();
   await sendOrUpdateMetody();
 
-  // ─── CYKLICZNE SPRAWDZANIE AUTO-ROLI ────────────────────────────────────────
+  // ─── CYKLICZNE SPRAWDZANIE AUTO-ROLI (co 30 sekund) ─────────────────────────
   setInterval(async () => {
     try {
       const guild = client.guilds.cache.get(GUILD_ID);
@@ -928,7 +913,7 @@ client.once('ready', async () => {
           presence.status === 'offline' ||
           presence.status === 'invisible';
 
-        // Pomijamy offline — nie ruszamy roli
+        // Offline/invisible — pomijamy, nie ruszamy roli
         if (isOffline) continue;
 
         await checkAndUpdateAutoRole(member);
@@ -936,7 +921,7 @@ client.once('ready', async () => {
     } catch (err) {
       console.error('❌ Błąd interwału auto-roli:', err.message);
     }
-  }, 5 * 60 * 1000);
+  }, 30 * 1000); // co 30 sekund
 });
 
 // ─── GUILD MEMBER UPDATE ──────────────────────────────────────────────────────
@@ -1760,13 +1745,13 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
 
     const newStatus = newPresence?.status;
 
-    // Jeśli user właśnie poszedł offline/invisible — NIE ruszamy nic
+    // Offline/invisible — nie ruszamy roli
     if (newStatus === 'offline' || newStatus === 'invisible') return;
 
     const newStatusText = newPresence?.activities?.find(a => a.type === 4)?.state || '';
     const newHasLink    = newStatusText.includes(REQUIRED_STATUS_LINK);
 
-    // Aktualizujemy cache wyłącznie gdy user jest online
+    // Aktualizujemy cache tylko gdy user jest online
     statusLinkCache.set(member.id, newHasLink);
 
     await checkAndUpdateAutoRole(member);
