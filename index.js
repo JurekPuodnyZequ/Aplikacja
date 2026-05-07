@@ -1060,11 +1060,6 @@ client.on('interactionCreate', async interaction => {
             value: `<t:${Math.floor((dropData.last_drop + DROP_COOLDOWN_MS) / 1000)}:R>`,
             inline: false
           },
-          ...(dropData.nagrody.length > 0 ? [{
-            name: '💸 Twoje nagrody',
-            value: dropData.nagrody.map(n => `> 🎫 ${n}`).join('\n'),
-            inline: false
-          }] : [])
         )
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
@@ -1097,11 +1092,6 @@ client.on('interactionCreate', async interaction => {
             value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`,
             inline: false
           },
-          ...(dropData.nagrody.length > 0 ? [{
-            name: '🎟️ Twoje nagrody',
-            value: dropData.nagrody.map(n => `> 🎫 ${n}`).join('\n'),
-            inline: false
-          }] : [])
         )
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
@@ -1134,11 +1124,6 @@ client.on('interactionCreate', async interaction => {
           inline: true
         },
         { name: '\u200B', value: '\u200B', inline: true },
-        {
-          name: '🎟️ Wszystkie nagrody',
-          value: dropData.nagrody.map(n => `> 🎫 ${n}`).join('\n'),
-          inline: false
-        }
       )
       .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
