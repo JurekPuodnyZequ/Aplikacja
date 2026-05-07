@@ -53,101 +53,183 @@ const METODY_MSG_KEY         = 'metody_message_id';
 const STAFF_BASE_ROLE_ID     = '1495432509263974438';
 const SS_SHOP_EMOJI_URL      = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
 
-// ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
+ // ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
 const DROP_CHANNEL_ID    = '1501965406431219992';
 const DROP_REQUIRED_ROLE = '1501968954627854528';
 const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000; // 2 godziny
 
 // ─── AUTO-ROLA ZA TAG SERWERA LUB STATUS ──────────────────────────────────────
-// Rola nadawana gdy ktoś ma tag serwera lub status z linkiem
 const AUTO_ROLE_ID         = '1501968954627854528';
 const REQUIRED_STATUS_LINK = '.gg/yKPpzUSFpg';
 
+// ─── LOGI ──────────────────────────────────────────────────────────────────────
+const LOG_CHANNEL_ID = '1495432512506429465';
+
+// ─── NAGRODY ──────────────────────────────────────────────────────────────────
 const DROP_NAGRODY = [
-  { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', waga: 5 },
-  { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', waga: 2 },
-  { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', waga: 0.10 },
-  { nazwa: '5k Anarchia',              emoji: '💰', waga: 2.5 },
-  { nazwa: '8k Anarchia LF',           emoji: '💰', waga: 0.50 },
-  { nazwa: '15k Anarchia LF',          emoji: '💰', waga: 0.10  },
-  { nazwa: '1zł do wydania na SSshop', emoji: '💵', waga: 2  },
-  { nazwa: '2zł do wydania na SSshop', emoji: '💵', waga: 1  },
-  { nazwa: '3zł do wydania na SSshop', emoji: '💵', waga: 0.10  },
+  { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', szansa: 3.68 },
+  { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', szansa: 1.472 },
+  { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', szansa: 0.10 },
+
+  { nazwa: '5k Anarchia',              emoji: '💰', szansa: 1.84 },
+  { nazwa: '8k Anarchia LF',           emoji: '💰', szansa: 0.50 },
+  { nazwa: '15k Anarchia LF',          emoji: '💰', szansa: 0.10 },
+
+  { nazwa: '1zł do wydania na SSshop', emoji: '💵', szansa: 1.472 },
+  { nazwa: '2zł do wydania na SSshop', emoji: '💵', szansa: 0.736 },
+  { nazwa: '3zł do wydania na SSshop', emoji: '💵', szansa: 0.10 },
 ];
 
+// ─── LOSOWANIE ────────────────────────────────────────────────────────────────
 function losujNagrode() {
-  const totalWaga = DROP_NAGRODY.reduce((sum, n) => sum + n.waga, 0);
-  let rand = Math.random() * totalWaga;
+  const roll = Math.random() * 100;
+  let current = 0;
+
   for (const nagroda of DROP_NAGRODY) {
-    if (rand < nagroda.waga) return nagroda;
-    rand -= nagroda.waga;
+    current += nagroda.szansa;
+    if (roll <= current) return nagroda;
   }
-  return DROP_NAGRODY[0];
+
+  return null;
 }
 
+// ─── FORMAT COOLDOWNU ─────────────────────────────────────────────────────────
 function formatCooldown(ms) {
   const totalSec = Math.floor(ms / 1000);
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
+
   return `${h}h ${m}m ${s}s`;
 }
 
-// ─── SPRAWDZANIE AUTO-ROLI ─────────────────────────────────────────────────────
+// ─── STATUS CHECK ─────────────────────────────────────────────────────────────
 function memberHasStatusLink(member) {
   try {
     const presence = member.presence;
     if (!presence) return false;
+
     for (const activity of presence.activities) {
-      // Custom status (type 4)
       if (activity.type === 4) {
         const state = activity.state || '';
         if (state.includes(REQUIRED_STATUS_LINK)) return true;
       }
     }
+
     return false;
   } catch {
     return false;
   }
 }
 
+// ─── TAG CHECK ────────────────────────────────────────────────────────────────
 function memberHasServerTag(member) {
   try {
-    // Sprawdza czy użytkownik ma tag (clan tag) serwera
-    // Discord.js udostępnia to przez member.flags lub przez guild
-    const guild = member.guild;
-    // Sprawdź clan/tag przez API — jeśli guild ma tag to sprawdzamy
-    // member.flags zawiera CommunicationsDisabled etc, ale tag serwera
-    // to guild.nameAcronym lub customowy tag ustawiony przez guild
-    // Najlepsza metoda: sprawdź przez fetch pełnych danych membera
-    if (member.flags && member.flags.has('ClanMember')) return true;
-    return false;
+    const clanTag = member.user?.clan?.tag;
+    return clanTag === 'SSsh';
   } catch {
     return false;
   }
 }
 
+// ─── AUTO ROLE + LOGI ─────────────────────────────────────────────────────────
 async function checkAndUpdateAutoRole(member) {
   try {
     if (!member || member.user.bot) return;
 
+    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+
     const hasStatusLink = memberHasStatusLink(member);
     const hasServerTag  = memberHasServerTag(member);
-    const shouldHaveRole = hasStatusLink || hasServerTag;
+    
+    const shouldHaveRole = hasStatusLink && hasServerTag;
     const hasRole = member.roles.cache.has(AUTO_ROLE_ID);
 
+    // ─── NADANIE ROLI ───────────────────────────────────────────────
     if (shouldHaveRole && !hasRole) {
       await member.roles.add(AUTO_ROLE_ID);
-      console.log(`✅ Auto-rola nadana: ${member.user.username} (status: ${hasStatusLink}, tag: ${hasServerTag})`);
-    } else if (!shouldHaveRole && hasRole) {
-      // Opcjonalnie: zabierz rolę jeśli usunął tag/status
-      // await member.roles.remove(AUTO_ROLE_ID);
-      // console.log(`❌ Auto-rola zabrana: ${member.user.username}`);
+
+      console.log(`✅ Auto-rola NADANA: ${member.user.tag}`);
+
+      if (logChannel) {
+        logChannel.send(
+          `🎉 **Auto-rola nadana**\n` +
+          `👤 ${member.user.tag}\n` +
+          `📌 Status: ${hasStatusLink}\n` +
+          `🏷️ Tag: ${hasServerTag}`
+        );
+      }
     }
+
+    // ─── USUNIĘCIE ROLI ─────────────────────────────────────────────
+    else if (!shouldHaveRole && hasRole) {
+      await member.roles.remove(AUTO_ROLE_ID);
+
+      console.log(`❌ Auto-rola USUNIĘTA: ${member.user.tag}`);
+
+      if (logChannel) {
+        logChannel.send(
+          `🚫 **Auto-rola usunięta**\n` +
+          `👤 ${member.user.tag}\n` +
+          `📌 Powód: brak statusu/tagu`
+        );
+      }
+    }
+
   } catch (err) {
-    console.error(`❌ Błąd checkAndUpdateAutoRole dla ${member?.user?.username}:`, err.message);
+    console.error(`❌ Błąd auto-roli ${member?.user?.tag}:`, err);
   }
 }
+
+// ─── STATUS CHANGE LOGS ───────────────────────────────────────────────────────
+client.on('presenceUpdate', async (oldPresence, newPresence) => {
+  try {
+    const member = newPresence.member;
+    if (!member || member.user.bot) return;
+
+    const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
+
+    const oldStatus =
+      oldPresence?.activities?.find(a => a.type === 4)?.state || '';
+
+    const newStatus =
+      newPresence?.activities?.find(a => a.type === 4)?.state || '';
+
+    const oldHas = oldStatus.includes(REQUIRED_STATUS_LINK);
+    const newHas = newStatus.includes(REQUIRED_STATUS_LINK);
+
+    // ─── USTAWIŁ STATUS ─────────────────────────────────────────────
+    if (!oldHas && newHas) {
+      console.log(`✅ ${member.user.tag} ustawił status`);
+
+      if (logChannel) {
+        logChannel.send(
+          `✅ **Ustawiono status**\n` +
+          `👤 ${member.user.tag}\n` +
+          `📝 ${newStatus}`
+        );
+      }
+    }
+
+    // ─── USUNĄŁ STATUS ──────────────────────────────────────────────
+    if (oldHas && !newHas) {
+      console.log(`❌ ${member.user.tag} usunął status`);
+
+      if (logChannel) {
+        logChannel.send(
+          `❌ **Usunięto status**\n` +
+          `👤 ${member.user.tag}\n` +
+          `📝 ${oldStatus}`
+        );
+      }
+    }
+
+    await checkAndUpdateAutoRole(member);
+
+  } catch (err) {
+    console.error('❌ presenceUpdate error:', err);
+  }
+});
 
 // ─── METODY PŁATNOŚCI DLA TICKETÓW ───────────────────────────────────────────
 const TICKET_METODY = {
