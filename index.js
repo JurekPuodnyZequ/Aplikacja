@@ -1115,8 +1115,9 @@ client.on('interactionCreate', async interaction => {
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
-      return interaction.reply({ embeds: [embed]
-    }
+      return interaction.reply({
+  embeds: [embed]
+});
 
     dropData.nagrody.push(nagroda.nazwa);
     await saveDropData(interaction.user.id, now, dropData.nagrody);
