@@ -920,19 +920,6 @@ client.once('ready', async () => {
   }, 5 * 60 * 1000);
 });
 
-// ─── PRESENCE UPDATE — natychmiastowe sprawdzenie po zmianie statusu ──────────
-client.on('presenceUpdate', async (oldPresence, newPresence) => {
-  try {
-    const guild = newPresence?.guild;
-    if (!guild || guild.id !== GUILD_ID) return;
-    const member = await guild.members.fetch(newPresence.userId).catch(() => null);
-    if (!member) return;
-    await checkAndUpdateAutoRole(member);
-  } catch (err) {
-    console.error('❌ Błąd presenceUpdate:', err.message);
-  }
-});
-
 // ─── GUILD MEMBER UPDATE — gdy ktoś zmieni nick/tag ──────────────────────────
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
   try {
@@ -1746,31 +1733,27 @@ client.on('interactionCreate', async interaction => {
 // ─── NOWY CZŁONEK: sprawdź auto-rolę ─────────────────────────────────────────
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
-  // Poczekaj chwilę aż presence się załaduje
   setTimeout(() => checkAndUpdateAutoRole(member), 3000);
 });
 
-// ─── STATUS CHANGE LOGS ───────────────────────────────────────────────────────
+// ─── PRESENCE UPDATE — status logi + auto-rola ────────────────────────────────
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
   try {
-    const member = newPresence.member;
+    if (!newPresence?.guild || newPresence.guild.id !== GUILD_ID) return;
+
+    const member = await newPresence.guild.members.fetch(newPresence.userId).catch(() => null);
     if (!member || member.user.bot) return;
 
     const logChannel = member.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    const oldStatus =
-      oldPresence?.activities?.find(a => a.type === 4)?.state || '';
-
-    const newStatus =
-      newPresence?.activities?.find(a => a.type === 4)?.state || '';
+    const oldStatus = oldPresence?.activities?.find(a => a.type === 4)?.state || '';
+    const newStatus = newPresence?.activities?.find(a => a.type === 4)?.state || '';
 
     const oldHas = oldStatus.includes(REQUIRED_STATUS_LINK);
     const newHas = newStatus.includes(REQUIRED_STATUS_LINK);
 
-    // ─── USTAWIŁ STATUS ─────────────────────────────────────────────
     if (!oldHas && newHas) {
       console.log(`✅ ${member.user.tag} ustawił status`);
-
       if (logChannel) {
         logChannel.send(
           `✅ **Ustawiono status**\n` +
@@ -1780,10 +1763,8 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
       }
     }
 
-    // ─── USUNĄŁ STATUS ──────────────────────────────────────────────
     if (oldHas && !newHas) {
       console.log(`❌ ${member.user.tag} usunął status`);
-
       if (logChannel) {
         logChannel.send(
           `❌ **Usunięto status**\n` +
