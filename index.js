@@ -1349,7 +1349,6 @@ client.on('interactionCreate', async interaction => {
         .addFields(
           { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                inline: true  },
           { name: '🎯 Twój numerek',        value: `**${numerek}**`,                                          inline: true  },
-          { name: '🎲 Wylosowano',          value: `**${wylosowanyNumerek}** *(trafiłeś!)*`,                  inline: true  },
           { name: '🎟️ Postawiono tokenów',  value: `**${stawkaTokeny}** (= ${formatDolary(wartoscStawki)} $)`, inline: true  },
           { name: '🏆 Wygrana',            value: `**${formatDolary(wygranaSum)} $** (x${numerek})`,          inline: true  },
           { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                         inline: true  }
