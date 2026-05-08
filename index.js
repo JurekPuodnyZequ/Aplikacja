@@ -68,6 +68,8 @@ const DICE_CHANNEL_ID      = '1502342301433729084';
 const DICE_REQUIRED_ROLE   = '1502332174723190957';
 const DICE_OWNER_ID        = '1215343846003576872';
 
+const TOKEN_VALUE = 30000; // 1 token = 30k dolarów serwerowych
+
 // Mapa aktywnych wygranych (userId -> { wygrana, timestamp })
 const activeWins = new Map();
 
@@ -355,7 +357,6 @@ async function initDB() {
     )
   `);
 
-  // ─── TABELA TOKENÓW ────────────────────────────────────────────────────────
   await pool.query(`
     CREATE TABLE IF NOT EXISTS tokens (
       user_id TEXT PRIMARY KEY,
@@ -435,17 +436,16 @@ async function setTokens(userId, amount) {
 }
 
 // ─── DICE LOGIC ───────────────────────────────────────────────────────────────
-// Szanse wygrania w zależności od wybranego numerka (private, nie pokazuj użytkownikom)
 function getDiceWinChance(numer) {
-  if (numer <= 1) return 13;     // numerek 1 → 13%
-  if (numer <= 7) return 11;     // numerki 2-7 → 11%
-  return 8;                      // numerki 8-10 → 8%
+  if (numer < 3) return 9;   // 1-2 → 9%
+  if (numer < 7) return 6;   // 3-6 → 6%
+  return 4;                  // 7-10 → 4%
 }
 
 function rollDice(wybranyNumer) {
   const szansa = getDiceWinChance(wybranyNumer);
   const roll = Math.random() * 100;
-  return roll < szansa;
+  return { wygral: roll < szansa, roll: Math.floor(roll), szansa };
 }
 
 // ─── TOKEN REFRESH ─────────────────────────────────────────────────────────────
@@ -1155,7 +1155,6 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ embeds: [embed] });
     }
 
-    // ── Nagroda wylosowana ──
     dropData.nagrody.push(nagroda.nazwa);
     await saveDropData(interaction.user.id, now, dropData.nagrody);
     await logDropResult(interaction, nagroda);
@@ -1189,7 +1188,6 @@ client.on('interactionCreate', async interaction => {
 
   // ── TOKENGIVE ─────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'tokengive') {
-    // Tylko właściciel może używać
     if (interaction.user.id !== DICE_OWNER_ID) {
       return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', flags: 64 });
     }
@@ -1209,9 +1207,9 @@ client.on('interactionCreate', async interaction => {
       .setTitle('🎟️ Tokeny nadane!')
       .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
       .addFields(
-        { name: '👤 Użytkownik', value: `<@${targetUser.id}> (\`${targetUser.username}\`)`, inline: true },
-        { name: '🎟️ Dodano tokenów', value: `**${ilosc}**`, inline: true },
-        { name: '💰 Nowy balans', value: `**${nowyBalans}** tokenów`, inline: true }
+        { name: '👤 Użytkownik',    value: `<@${targetUser.id}> (\`${targetUser.username}\`)`, inline: true },
+        { name: '🎟️ Dodano tokenów', value: `**${ilosc}**`,                                    inline: true },
+        { name: '💰 Nowy balans',   value: `**${nowyBalans}** tokenów`,                        inline: true }
       )
       .setFooter({ text: 'SS Shop | System Tokenów', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
@@ -1221,31 +1219,27 @@ client.on('interactionCreate', async interaction => {
 
   // ── DICE ──────────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'dice') {
-    // Sprawdź kanał
     if (interaction.channel.id !== DICE_CHANNEL_ID) {
       return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DICE_CHANNEL_ID}>!`, flags: 64 });
     }
 
-    // Sprawdź rangę
     const hasRole = interaction.member.roles.cache.has(DICE_REQUIRED_ROLE);
     if (!hasRole) {
       return interaction.reply({ content: '❌ Nie masz wymaganej rangi do użycia tej komendy!', flags: 64 });
     }
 
-    // Sprawdź żetony
     const tokeny = await getTokens(interaction.user.id);
     if (tokeny < 1) {
       const embed = new EmbedBuilder()
         .setColor(0xff4444)
         .setTitle('🎲 SSshop × Dice')
-        .setDescription('❌ **Nie masz żetonów!**\nKup żetony, aby móc grać.')
+        .setDescription(`❌ **Nie masz żetonów!**\nKup żetony, aby móc grać.\n\n🎟️ Twój balans: **0 tokenów**`)
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
-    // Pokaż modal z wyborem stawki i numerka
     const modal = new ModalBuilder()
       .setCustomId('modal_dice')
       .setTitle('🎲 Dice — SS Shop');
@@ -1253,12 +1247,12 @@ client.on('interactionCreate', async interaction => {
     modal.addComponents(
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
-          .setCustomId('stawka_dolary')
-          .setLabel('Stawka w dolarach serwerowych (np. 100k, 1m)')
-          .setPlaceholder('np. 50k, 200k, 1m')
+          .setCustomId('stawka_tokenow')
+          .setLabel(`Stawka w tokenach (masz ${tokeny}, 1 token = 30k $)`)
+          .setPlaceholder('np. 1, 2, 5')
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setMaxLength(15)
+          .setMaxLength(5)
       ),
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
@@ -1277,7 +1271,6 @@ client.on('interactionCreate', async interaction => {
 
   // ── MODAL: DICE ───────────────────────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'modal_dice') {
-    // Sprawdź kanał i rangę ponownie
     if (interaction.channel.id !== DICE_CHANNEL_ID) {
       return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DICE_CHANNEL_ID}>!`, flags: 64 });
     }
@@ -1286,49 +1279,64 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ Nie masz wymaganej rangi!', flags: 64 });
     }
 
-    const stawkaInput  = interaction.fields.getTextInputValue('stawka_dolary');
+    const stawkaInput  = interaction.fields.getTextInputValue('stawka_tokenow').trim();
     const numerekInput = interaction.fields.getTextInputValue('wybrany_numerek').trim();
 
-    const stawka  = parseDolary(stawkaInput);
-    const numerek = parseInt(numerekInput, 10);
+    const stawkaTokeny = parseInt(stawkaInput, 10);
+    const numerek      = parseInt(numerekInput, 10);
 
-    if (!stawka || stawka <= 0) {
-      return interaction.reply({ content: '❌ Nieprawidłowa stawka! Wpisz np. `50k`, `200k`, `1m`.', flags: 64 });
+    if (isNaN(stawkaTokeny) || stawkaTokeny < 1) {
+      return interaction.reply({ content: '❌ Nieprawidłowa stawka! Wpisz liczbę tokenów, np. `1`, `2`, `5`.', flags: 64 });
     }
 
     if (isNaN(numerek) || numerek < 1 || numerek > 10) {
       return interaction.reply({ content: '❌ Nieprawidłowy numerek! Wybierz liczbę od **1 do 10**.', flags: 64 });
     }
 
-    // Sprawdź żetony
+    // Sprawdź tokeny
     const tokeny = await getTokens(interaction.user.id);
-    if (tokeny < 1) {
-      return interaction.reply({ content: '❌ Nie masz żetonów do gry!', flags: 64 });
+    if (tokeny < stawkaTokeny) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff4444)
+        .setTitle('🎲 SSshop × Dice — Brak tokenów!')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setDescription(
+          `❌ **Nie masz wystarczająco tokenów!**\n\n` +
+          `🎟️ Twój balans: **${tokeny} tokenów**\n` +
+          `🎯 Chciałeś postawić: **${stawkaTokeny} tokenów**\n\n` +
+          `Brakuje Ci **${stawkaTokeny - tokeny}** tokenów.`
+        )
+        .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
-    // Usuń 1 żeton
-    await removeTokens(interaction.user.id, 1);
+    // Odejmij tokeny
+    await removeTokens(interaction.user.id, stawkaTokeny);
     const tokenyPo = await getTokens(interaction.user.id);
 
-    // Losuj kostki (animacja: 3 kostki)
     await interaction.deferReply();
 
-    const wygranaSum = stawka * numerek;
-    const wygral     = rollDice(numerek);
+    // Oblicz wartości
+    const wartoscStawki = stawkaTokeny * TOKEN_VALUE;           // np. 2 tokeny * 30k = 60k
+    const wygranaSum    = wartoscStawki * numerek;              // np. 60k * 6 = 360k
+    const { wygral, roll, szansa } = rollDice(numerek);
 
     // Animacja kostki
     const kostki = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
     const randomKostka = () => kostki[Math.floor(Math.random() * kostki.length)];
 
-    const animMsg = await interaction.editReply({
+    await interaction.editReply({
       content: `🎲 Rzucam kostką... ${randomKostka()} ${randomKostka()} ${randomKostka()}`
     });
 
     await new Promise(r => setTimeout(r, 1200));
 
-    // Wynik
+    // Wylosowana liczba (pseudo - pokazujemy roll jako "wylosowaną" wartość 1-100)
+    // Dla czytelności pokażemy wylosowany numerek (1-10) symulowany z roll
+    const wylosowanyNumerek = (roll % 10) + 1;
+
     if (wygral) {
-      // Zapisz wygraną do mapy (dla /double)
       activeWins.set(interaction.user.id, {
         wygrana: wygranaSum,
         timestamp: Date.now()
@@ -1339,25 +1347,25 @@ client.on('interactionCreate', async interaction => {
         .setTitle('🎲 SSshop × Dice — WYGRANA! 🎉')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          { name: '👤 Gracz',          value: `<@${interaction.user.id}>`,          inline: true },
-          { name: '🎯 Wybrany numerek', value: `**${numerek}**`,                    inline: true },
-          { name: '💵 Stawka',          value: `**${formatDolary(stawka)} $**`,     inline: true },
-          { name: '🏆 Wygrana',         value: `**${formatDolary(wygranaSum)} $** (x${numerek})`, inline: true },
-          { name: '🎟️ Żetony pozostałe', value: `**${tokenyPo}**`,                 inline: true },
-          { name: '\u200B',             value: '\u200B',                             inline: true }
+          { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                inline: true  },
+          { name: '🎯 Twój numerek',        value: `**${numerek}**`,                                          inline: true  },
+          { name: '🎲 Wylosowano',          value: `**${wylosowanyNumerek}** *(trafiłeś!)*`,                  inline: true  },
+          { name: '🎟️ Postawiono tokenów',  value: `**${stawkaTokeny}** (= ${formatDolary(wartoscStawki)} $)`, inline: true  },
+          { name: '🏆 Wygrana',            value: `**${formatDolary(wygranaSum)} $** (x${numerek})`,          inline: true  },
+          { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                         inline: true  }
         )
         .setDescription(
           `🎉 **WYGRAŁEŚ!** Trafiłeś numerek **${numerek}**!\n\n` +
-          `Twoja wygrana: **${formatDolary(wygranaSum)} $**\n\n` +
+          `Stawka: **${stawkaTokeny} tokenów** × **${numerek}** = **${formatDolary(wygranaSum)} $**\n` +
+          `*(${stawkaTokeny} tokenów × 30k × ${numerek} = ${formatDolary(wygranaSum)} $)*\n\n` +
           `💡 Użyj \`/double\` aby podwoić wygraną (lub stracić wszystko)!`
         )
-        .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: `SS Shop | Dice System • Szansa wygranej: ${szansa}%`, iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedWin] });
 
     } else {
-      // Przegrał — usuń aktywną wygraną jeśli była
       activeWins.delete(interaction.user.id);
 
       const embedLose = new EmbedBuilder()
@@ -1365,15 +1373,15 @@ client.on('interactionCreate', async interaction => {
         .setTitle('🎲 SSshop × Dice — Przegrana')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          { name: '👤 Gracz',           value: `<@${interaction.user.id}>`,      inline: true },
-          { name: '🎯 Wybrany numerek',  value: `**${numerek}**`,                inline: true },
-          { name: '💵 Stawka',           value: `**${formatDolary(stawka)} $**`, inline: true },
-          { name: '🎟️ Żetony pozostałe', value: `**${tokenyPo}**`,               inline: true },
-          { name: '\u200B',              value: '\u200B',                          inline: true },
-          { name: '\u200B',              value: '\u200B',                          inline: true }
+          { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                  inline: true },
+          { name: '🎯 Twój numerek',        value: `**${numerek}**`,                                            inline: true },
+          { name: '🎲 Wylosowano',          value: `**${wylosowanyNumerek}** *(nie trafiłeś)*`,                 inline: true },
+          { name: '🎟️ Postawiono tokenów',  value: `**${stawkaTokeny}** (= ${formatDolary(wartoscStawki)} $)`,  inline: true },
+          { name: '💸 Przegrana',           value: `**${formatDolary(wartoscStawki)} $**`,                      inline: true },
+          { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                           inline: true }
         )
         .setDescription(`❌ **Nie trafiłeś!** Tym razem szczęście nie dopisało.\n\nSpróbuj ponownie — żetonów można kupić więcej!`)
-        .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: `SS Shop | Dice System • Szansa wygranej: ${szansa}%`, iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedLose] });
@@ -1382,18 +1390,15 @@ client.on('interactionCreate', async interaction => {
 
   // ── DOUBLE ────────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'double') {
-    // Sprawdź kanał
     if (interaction.channel.id !== DICE_CHANNEL_ID) {
       return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DICE_CHANNEL_ID}>!`, flags: 64 });
     }
 
-    // Sprawdź rangę
     const hasRole = interaction.member.roles.cache.has(DICE_REQUIRED_ROLE);
     if (!hasRole) {
       return interaction.reply({ content: '❌ Nie masz wymaganej rangi!', flags: 64 });
     }
 
-    // Sprawdź czy gracz ma aktywną wygraną
     const winData = activeWins.get(interaction.user.id);
     if (!winData) {
       return interaction.reply({
@@ -1406,7 +1411,6 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.deferReply();
 
-    // 50/50 szansa
     const wygranaDouble = Math.random() < 0.5;
 
     const kostki = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
@@ -1416,7 +1420,6 @@ client.on('interactionCreate', async interaction => {
 
     await new Promise(r => setTimeout(r, 1200));
 
-    // Usuń wygraną z mapy niezależnie od wyniku
     activeWins.delete(interaction.user.id);
 
     if (wygranaDouble) {
@@ -2093,7 +2096,7 @@ if (process.argv.includes('--setup')) {
       .toJSON(),
     new SlashCommandBuilder()
       .setName('dice')
-      .setDescription('🎲 Zagraj w kości! Wydajesz 1 żeton za grę.')
+      .setDescription('🎲 Zagraj w kości! Wybierz stawkę w tokenach i numerek.')
       .toJSON(),
     new SlashCommandBuilder()
       .setName('double')
