@@ -437,9 +437,9 @@ async function setTokens(userId, amount) {
 
 // ─── DICE LOGIC ───────────────────────────────────────────────────────────────
 function getDiceWinChance(numer) {
-  if (numer < 3) return 9;   // 1-2 → 9%
-  if (numer < 7) return 6;   // 3-6 → 6%
-  return 4;                  // 7-10 → 4%
+  if (numer < 3) return 6;   // 1-2 → 6%
+  if (numer < 7) return 0.5;   // 3-6 → 0.5%
+  return 0.1;                  // 7-10 → 0.1%
 }
 
 function rollDice(wybranyNumer) {
@@ -1410,7 +1410,7 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.deferReply();
 
-    const wygranaDouble = Math.random() < 0.5;
+    const wygranaDouble = Math.random() < 0.01;
 
     const kostki = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
     await interaction.editReply({
