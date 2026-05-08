@@ -1373,8 +1373,7 @@ client.on('interactionCreate', async interaction => {
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                  inline: true },
-          { name: '🎯 Twój numerek',        value: `**${numerek}**`,                                            inline: true },
-          { name: '🎲 Wylosowano',          value: `**${wylosowanyNumerek}** *(nie trafiłeś)*`,                 inline: true },
+          { name: '🎯 Twój numerek',        value: `**${numerek}**`,                                            inline: true },,
           { name: '🎟️ Postawiono tokenów',  value: `**${stawkaTokeny}** (= ${formatDolary(wartoscStawki)} $)`,  inline: true },
           { name: '💸 Przegrana',           value: `**${formatDolary(wartoscStawki)} $**`,                      inline: true },
           { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                           inline: true }
