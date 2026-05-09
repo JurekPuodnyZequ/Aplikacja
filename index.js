@@ -437,9 +437,9 @@ async function setTokens(userId, amount) {
 
 // ─── DICE LOGIC ───────────────────────────────────────────────────────────────
 function getDiceWinChance(numer) {
-  if (numer < 3) return 11;   // 1-2 → 6%
-  if (numer < 7) return 0.8;   // 3-6 → 0.5%
-  return 0.2;                  // 7-10 → 0.1%
+  if (numer < 4) return 11;   // 1-3 → 11%
+  if (numer < 7) return 4;   // 4-6 → 4%
+  return 1;                  // 7-10 → 1%
 }
 
 function rollDice(wybranyNumer) {
