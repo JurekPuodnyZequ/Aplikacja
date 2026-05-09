@@ -1359,7 +1359,7 @@ client.on('interactionCreate', async interaction => {
           `*(${stawkaTokeny} tokenów × 30k × ${numerek} = ${formatDolary(wygranaSum)} $)*\n\n` +
           `💡 Użyj \`/double\` aby podwoić wygraną (lub stracić wszystko)!`
         )
-        .setFooter({ text: `SS Shop | Dice System • Szansa wygranej: ${szansa}%`, iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: `SS Shop | Dice System`, iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedWin] });
@@ -1379,7 +1379,7 @@ client.on('interactionCreate', async interaction => {
           { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                           inline: true }
         )
         .setDescription(`❌ **Nie trafiłeś!** Tym razem szczęście nie dopisało.\n\nSpróbuj ponownie — żetonów można kupić więcej!`)
-        .setFooter({ text: `SS Shop | Dice System • Szansa wygranej: ${szansa}%`, iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: `SS Shop | Dice System `, iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedLose] });
