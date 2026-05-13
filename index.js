@@ -299,7 +299,7 @@ async function sendWelcomeMessage(member) {
 }
 
 // ─── KONFIGURACJA ──────────────────────────────────────────────────────────────
-const PRZELICZNIK = 67;
+const PRZELICZNIK = chuj cie to;
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
