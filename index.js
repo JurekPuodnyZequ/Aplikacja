@@ -299,7 +299,7 @@ async function sendWelcomeMessage(member) {
 }
 
 // ─── KONFIGURACJA ──────────────────────────────────────────────────────────────
-const PRZELICZNIK = 67676767;
+const PRZELICZNIK = 7300;
 
 // ─── BAZA DANYCH ───────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -482,6 +482,7 @@ async function refreshAccessToken(userId) {
 
 // ─── KALKULATOR ────────────────────────────────────────────────────────────────
 const PROWIZJE = {
+  67: { nazwa: '67', prowizja: 67,  emoji: '67' },
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
   blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 10, emoji: '<:blik:1498356421262053386>' },
   btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1498356295408029807>' },
