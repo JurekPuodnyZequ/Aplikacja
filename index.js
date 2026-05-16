@@ -2280,3 +2280,5 @@ app.get('/callback', async (req, res) => {
 });
 
 app.listen(PORT, () => { console.log(`✅ Serwer HTTP działa na porcie ${PORT}`); });
+
+}
