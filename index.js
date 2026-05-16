@@ -1,7 +1,8 @@
 require('dotenv').config();
 
 const legitCheckMap = new Map();
-const statusLinkCache = new Map(); 
+const statusLinkCache = new Map();
+const usedCodes = new Set(); // FIX: ochrona przed duplikatem kodu OAuth2
 const express = require('express');
 const axios = require('axios');
 const { Pool } = require('pg');
@@ -72,9 +73,8 @@ const DICE_CHANNEL_ID      = '1502342301433729084';
 const DICE_REQUIRED_ROLE   = '1502332174723190957';
 const DICE_OWNER_ID        = '1215343846003576872';
 
-const TOKEN_VALUE = 30000; // 1 token = 30k dolarów serwerowych
+const TOKEN_VALUE = 30000;
 
-// Mapa aktywnych wygranych (userId -> { wygrana, timestamp })
 const activeWins = new Map();
 
 // ─── NAGRODY ──────────────────────────────────────────────────────────────────
@@ -360,7 +360,6 @@ async function initDB() {
       nagrody    TEXT DEFAULT '[]'
     )
   `);
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS tokens (
       user_id TEXT PRIMARY KEY,
@@ -441,9 +440,9 @@ async function setTokens(userId, amount) {
 
 // ─── DICE LOGIC ───────────────────────────────────────────────────────────────
 function getDiceWinChance(numer) {
-  if (numer < 4) return 11;   // 1-3 → 11%
-  if (numer < 7) return 4;   // 4-6 → 4%
-  return 1;                  // 7-10 → 1%
+  if (numer < 4) return 11;
+  if (numer < 7) return 4;
+  return 1;
 }
 
 function rollDice(wybranyNumer) {
@@ -457,6 +456,8 @@ async function refreshAccessToken(userId) {
   const result = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
   if (result.rows.length === 0) return null;
   const user = result.rows[0];
+
+  // Token wciąż ważny — zwróć go od razu
   if (user.expires_at > Date.now() + 600_000) return user.access_token;
 
   try {
@@ -479,7 +480,17 @@ async function refreshAccessToken(userId) {
     );
     return newAccessToken;
   } catch (err) {
-    console.error(`❌ Błąd odświeżenia tokenu dla ${userId}:`, err?.response?.data || err.message);
+    const errData = err?.response?.data;
+    // FIX: jeśli użytkownik odautoryzował aplikację — oznacz go w bazie zamiast logować jako błąd
+    if (errData?.error === 'invalid_grant') {
+      console.log(`⚠️ Użytkownik ${userId} odautoryzował aplikację — usuwam tokeny z bazy.`);
+      await pool.query(
+        `UPDATE users SET access_token=NULL, refresh_token=NULL, expires_at=0 WHERE user_id=$1`,
+        [userId]
+      );
+      return null;
+    }
+    console.error(`❌ Błąd odświeżenia tokenu dla ${userId}:`, errData || err.message);
     return null;
   }
 }
@@ -744,6 +755,7 @@ async function sendOrUpdateMetody() {
     console.error('❌ Błąd metod płatności:', err.message);
   }
 }
+
 // ─── PROPOZYCJE ───────────────────────────────────────────────────────────────
 function buildPropozycjeMainEmbed() {
   return new EmbedBuilder()
@@ -789,6 +801,7 @@ async function sendOrUpdatePropozycje() {
     console.error('❌ Błąd propozycji:', err.message);
   }
 }
+
 // ─── TICKET: tworzenie ────────────────────────────────────────────────────────
 async function createTicketChannel(guild, user, pelerynka, cenaTekst, metodaKey) {
   const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
@@ -1111,32 +1124,26 @@ client.on('messageCreate', async message => {
 
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
-if (
-  interaction.isButton() &&
-  interaction.customId === 'propozycja_wystaw'
-) {
-  const modal = new ModalBuilder()
-    .setCustomId('propozycja_modal')
-    .setTitle('💡 Dodaj propozycję');
 
-  const suggestionInput = new TextInputBuilder()
-    .setCustomId('propozycja_tresc')
-    .setLabel('OPIS PROPOZYCJI')
-    .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Napisz swoją propozycję...')
-    .setRequired(true)
-    .setMinLength(10)
-    .setMaxLength(500);
+  if (interaction.isButton() && interaction.customId === 'propozycja_wystaw') {
+    const modal = new ModalBuilder()
+      .setCustomId('propozycja_modal')
+      .setTitle('💡 Dodaj propozycję');
 
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(suggestionInput)
-  );
+    const suggestionInput = new TextInputBuilder()
+      .setCustomId('propozycja_tresc')
+      .setLabel('OPIS PROPOZYCJI')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Napisz swoją propozycję...')
+      .setRequired(true)
+      .setMinLength(10)
+      .setMaxLength(500);
 
-await interaction.showModal(modal);
-  return;
-}
+    modal.addComponents(new ActionRowBuilder().addComponents(suggestionInput));
+    await interaction.showModal(modal);
+    return;
+  }
 
-  // ── MODAL PROPOZYCJI: submit ──────────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'propozycja_modal') {
     await interaction.deferReply({ flags: 64 });
     const tresc = interaction.fields.getTextInputValue('propozycja_tresc').trim();
@@ -1180,8 +1187,7 @@ await interaction.showModal(modal);
     return;
   }
 
-  // ── DROP: slash command /drop ──────────────────────────────────────────────
-  // ── DROP: slash command /drop ──────────────────────────────────────────────
+  // ── DROP ──────────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'drop') {
 
     if (interaction.channel.id !== DROP_CHANNEL_ID) {
@@ -1196,11 +1202,7 @@ await interaction.showModal(modal);
         .setTitle('🎁 SSshop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          {
-            name: '👤 Użytkownik',
-            value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
-            inline: true
-          },
+          { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
           { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
@@ -1221,19 +1223,11 @@ await interaction.showModal(modal);
         .setTitle('🎁 SSshop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          {
-            name: '👤 Użytkownik',
-            value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
-            inline: true
-          },
+          { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
           { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '❌ Wynik', value: 'Masz Cooldown! — poczekaj 2h!', inline: false },
-          {
-            name: '⏳ Dostępny za',
-            value: `<t:${Math.floor((dropData.last_drop + DROP_COOLDOWN_MS) / 1000)}:R>`,
-            inline: false
-          },
+          { name: '⏳ Dostępny za', value: `<t:${Math.floor((dropData.last_drop + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: false },
         )
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
@@ -1253,19 +1247,11 @@ await interaction.showModal(modal);
         .setTitle('🎁 SSshop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          {
-            name: '👤 Użytkownik',
-            value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
-            inline: true
-          },
+          { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
           { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '❌ Wynik', value: 'Tym razem nic się nie trafiło. Spróbuj za 2 godziny!', inline: false },
-          {
-            name: '⏳ Następny drop',
-            value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`,
-            inline: false
-          },
+          { name: '⏳ Następny drop', value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: false },
         )
         .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
@@ -1283,19 +1269,11 @@ await interaction.showModal(modal);
       .setTitle('🎁 SSshop × DROP')
       .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
       .addFields(
-        {
-          name: '👤 Użytkownik',
-          value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`,
-          inline: true
-        },
+        { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
         { name: '🆔 ID', value: `\`${interaction.user.id}\``, inline: true },
         { name: '\u200B', value: '\u200B', inline: true },
         { name: '🎉 Nagroda', value: `${nagroda.emoji} **${nagroda.nazwa}**`, inline: true },
-        {
-          name: '⏳ Następny drop',
-          value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`,
-          inline: true
-        },
+        { name: '⏳ Następny drop', value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: true },
         { name: '\u200B', value: '\u200B', inline: true },
       )
       .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
@@ -1411,7 +1389,6 @@ await interaction.showModal(modal);
       return interaction.reply({ content: '❌ Nieprawidłowy numerek! Wybierz liczbę od **1 do 10**.', flags: 64 });
     }
 
-    // Sprawdź tokeny
     const tokeny = await getTokens(interaction.user.id);
     if (tokeny < stawkaTokeny) {
       const embed = new EmbedBuilder()
@@ -1429,18 +1406,15 @@ await interaction.showModal(modal);
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
-    // Odejmij tokeny
     await removeTokens(interaction.user.id, stawkaTokeny);
     const tokenyPo = await getTokens(interaction.user.id);
 
     await interaction.deferReply();
 
-    // Oblicz wartości
-    const wartoscStawki = stawkaTokeny * TOKEN_VALUE;           // np. 2 tokeny * 30k = 60k
-    const wygranaSum    = wartoscStawki * numerek;              // np. 60k * 6 = 360k
+    const wartoscStawki = stawkaTokeny * TOKEN_VALUE;
+    const wygranaSum    = wartoscStawki * numerek;
     const { wygral, roll, szansa } = rollDice(numerek);
 
-    // Animacja kostki
     const kostki = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
     const randomKostka = () => kostki[Math.floor(Math.random() * kostki.length)];
 
@@ -1449,10 +1423,6 @@ await interaction.showModal(modal);
     });
 
     await new Promise(r => setTimeout(r, 1200));
-
-    // Wylosowana liczba (pseudo - pokazujemy roll jako "wylosowaną" wartość 1-100)
-    // Dla czytelności pokażemy wylosowany numerek (1-10) symulowany z roll
-    const wylosowanyNumerek = (roll % 10) + 1;
 
     if (wygral) {
       activeWins.set(interaction.user.id, {
@@ -1735,7 +1705,7 @@ await interaction.showModal(modal);
     return;
   }
 
-  // ── KUP PELERYNKĘ → modal ──────────────────────────────────────────────────
+  // ── KUP PELERYNKĘ ──────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kup_pelerynke') {
     const modal = new ModalBuilder().setCustomId('modal_kup_pelerynke').setTitle('🛍️ Zakup pelerynki — SS Shop');
     modal.addComponents(new ActionRowBuilder().addComponents(
@@ -1751,7 +1721,6 @@ await interaction.showModal(modal);
     return;
   }
 
-  // ── MODAL: zakup pelerynki → wybór metody płatności ───────────────────────
   if (interaction.isModalSubmit() && interaction.customId === 'modal_kup_pelerynke') {
     const input     = interaction.fields.getTextInputValue('nazwa_pelerynki');
     const pelerynka = znajdzPelerynke(input);
@@ -1783,7 +1752,7 @@ await interaction.showModal(modal);
     return;
   }
 
-  // ── SELECT: wybór metody płatności dla ticketu ────────────────────────────
+  // ── SELECT: metoda płatności dla ticketu ──────────────────────────────────
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith('select_metoda_platnosci_')) {
     const pelerynkaKey = interaction.customId.replace('select_metoda_platnosci_', '');
     const metodaKey    = interaction.values[0];
@@ -2044,7 +2013,7 @@ await interaction.showModal(modal);
     return;
   }
 
-  // ── KOMENDA: setup-verify ─────────────────────────────────────────────────
+  // ── SETUP-VERIFY ──────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify') {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
       return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
@@ -2071,7 +2040,7 @@ await interaction.showModal(modal);
     return;
   }
 
-  // ── KOMENDA: transfer ─────────────────────────────────────────────────────
+  // ── TRANSFER ──────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
     if (interaction.user.id !== '1215343846003576872') {
       return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', flags: 64 });
@@ -2101,6 +2070,7 @@ await interaction.showModal(modal);
     const targetGuild = await client.guilds.fetch(targetGuildId).catch(() => null);
     if (!targetGuild) return interaction.editReply({ content: '❌ Nie znaleziono serwera docelowego!' });
 
+    // FIX: oddzielne liczniki — deauthorized to nie "failed"
     let success = 0, failed = 0, alreadyOnServer = 0, deauthorized = 0, notFound = 0;
     const BATCH_SIZE = 5, BATCH_DELAY = 300;
 
@@ -2109,7 +2079,9 @@ await interaction.showModal(modal);
       while (attempts < 3) {
         try {
           const accessToken = await refreshAccessToken(row.user_id);
-          if (!accessToken) { failed++; return; }
+          // FIX: jeśli null — użytkownik odautoryzował, nie wliczaj jako "failed"
+          if (!accessToken) { deauthorized++; return; }
+
           const response = await axios.put(
             `https://discord.com/api/guilds/${targetGuildId}/members/${row.user_id}`,
             { access_token: accessToken },
@@ -2174,14 +2146,12 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
     if (!member || member.user.bot) return;
 
     const newStatus = newPresence?.status;
-
     if (newStatus === 'offline' || newStatus === 'invisible') return;
 
     const newStatusText = newPresence?.activities?.find(a => a.type === 4)?.state || '';
     const newHasLink    = newStatusText.includes(REQUIRED_STATUS_LINK);
 
     statusLinkCache.set(member.id, newHasLink);
-
     await checkAndUpdateAutoRole(member);
 
   } catch (err) {
@@ -2265,6 +2235,13 @@ app.get('/callback', async (req, res) => {
   const { code, state: userId } = req.query;
   if (!code || !userId) return res.status(400).send('❌ Brak kodu autoryzacji lub ID użytkownika.');
 
+  // FIX: ochrona przed podwójnym użyciem tego samego kodu OAuth2
+  if (usedCodes.has(code)) {
+    return res.status(400).send('❌ Ten kod weryfikacyjny został już użyty. Wróć na Discord i kliknij przycisk ponownie.');
+  }
+  usedCodes.add(code);
+  setTimeout(() => usedCodes.delete(code), 60_000); // wyczyść po minucie
+
   try {
     const tokenRes = await axios.post(
       'https://discord.com/api/oauth2/token',
@@ -2334,6 +2311,8 @@ app.get('/callback', async (req, res) => {
       </body></html>
     `);
   } catch (err) {
+    // FIX: jeśli kod był zły — usuń go z usedCodes żeby użytkownik mógł spróbować ponownie
+    usedCodes.delete(code);
     console.error('❌ Błąd weryfikacji:', err?.response?.data || err.message);
     return res.status(500).send(`
       <html><head><title>Błąd</title></head>
