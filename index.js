@@ -768,6 +768,27 @@ function buildPropozycjeComponents() {
 }
 
 async function sendOrUpdatePropozycje() {
+  try {
+    const channel = await client.channels.fetch(PROPOZYCJE_CHANNEL_ID).catch(() => null);
+    if (!channel) { console.error('❌ Nie znaleziono kanału propozycji'); return; }
+    const embed      = buildPropozycjeMainEmbed();
+    const components = buildPropozycjeComponents();
+    const existingId = await getConfig(PROPOZYCJE_MSG_KEY);
+    if (existingId) {
+      try {
+        const existing = await channel.messages.fetch(existingId);
+        await existing.edit({ embeds: [embed], components });
+        console.log('✅ Propozycje zaktualizowane!');
+        return;
+      } catch {}
+    }
+    const msg = await channel.send({ embeds: [embed], components });
+    await setConfig(PROPOZYCJE_MSG_KEY, msg.id);
+    console.log('✅ Propozycje wysłane!');
+  } catch (err) {
+    console.error('❌ Błąd propozycji:', err.message);
+  }
+}
 // ─── TICKET: tworzenie ────────────────────────────────────────────────────────
 async function createTicketChannel(guild, user, pelerynka, cenaTekst, metodaKey) {
   const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
@@ -1111,10 +1132,55 @@ if (
     new ActionRowBuilder().addComponents(suggestionInput)
   );
 
-  await interaction.showModal(modal);
-
+await interaction.showModal(modal);
   return;
 }
+
+  // ── MODAL PROPOZYCJI: submit ──────────────────────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId === 'propozycja_modal') {
+    await interaction.deferReply({ flags: 64 });
+    const tresc = interaction.fields.getTextInputValue('propozycja_tresc').trim();
+    const user  = interaction.user;
+
+    const propEmbed = new EmbedBuilder()
+      .setColor(0xFFFFFF)
+      .setAuthor({ name: 'SS Shop × PROPOZYCJA', iconURL: SS_SHOP_EMOJI_URL })
+      .setDescription(
+        '> 👤 <@' + user.id + '>\n' +
+        '> 💡 *' + tresc + '*'
+      )
+      .setFooter({ text: 'SS Shop © 2026', iconURL: SS_SHOP_EMOJI_URL })
+      .setTimestamp();
+
+    try {
+      const channel = await client.channels.fetch(PROPOZYCJE_CHANNEL_ID).catch(() => null);
+      if (channel) {
+        const existingId = await getConfig(PROPOZYCJE_MSG_KEY);
+        if (existingId) {
+          try {
+            const existingMsg = await channel.messages.fetch(existingId);
+            await existingMsg.delete();
+          } catch {}
+          await setConfig(PROPOZYCJE_MSG_KEY, null);
+        }
+        const sent = await channel.send({ embeds: [propEmbed] });
+        await sent.react('✅');
+        await sent.react('❌');
+        const newMainMsg = await channel.send({
+          embeds: [buildPropozycjeMainEmbed()],
+          components: buildPropozycjeComponents(),
+        });
+        await setConfig(PROPOZYCJE_MSG_KEY, newMainMsg.id);
+      }
+    } catch (err) {
+      console.error('❌ Błąd wysyłania propozycji:', err.message);
+    }
+
+    await interaction.editReply({ content: '✅ **Twoja propozycja została wysłana!** Społeczność może teraz na nią głosować.' });
+    return;
+  }
+
+  // ── DROP: slash command /drop ──────────────────────────────────────────────
   // ── DROP: slash command /drop ──────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'drop') {
 
@@ -2280,5 +2346,3 @@ app.get('/callback', async (req, res) => {
 });
 
 app.listen(PORT, () => { console.log(`✅ Serwer HTTP działa na porcie ${PORT}`); });
-
-}
