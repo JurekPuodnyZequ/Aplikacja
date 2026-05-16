@@ -748,13 +748,13 @@ async function sendOrUpdateMetody() {
 function buildPropozycjeMainEmbed() {
   return new EmbedBuilder()
     .setColor(0xFFFFFF)
-    .setAuthor({ name: 'RAVEN EXCHANGE × PROPOZYCJE', iconURL: RAVEN_LOGO_URL })
+    .setAuthor({ name: 'SSshop × PROPOZYCJE', iconURL: RAVEN_LOGO_URL })
     .setDescription(
       '>>> **»** Masz pomysł na ulepszenie serwera?\n' +
       '**»** Kliknij przycisk poniżej i **wystaw swoją propozycję**.\n' +
       '**»** Społeczność zagłosuje czy ją **przyjąć** ✅ czy **odrzucić** ❌.'
     )
-    .setFooter({ text: 'RAVEN EXCHANGE © 2026' })
+    .setFooter({ text: 'SSshop © 2026' })
     .setTimestamp();
 }
 
