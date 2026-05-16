@@ -50,9 +50,13 @@ const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 
 const METODY_CHANNEL_ID      = '1495432511893803068';
 const METODY_MSG_KEY         = 'metody_message_id';
+const PROPOZYCJE_CHANNEL_ID = '1505273195429892237';
+const PROPOZYCJE_MSG_KEY    = 'propozycje_message_id';
 
 const STAFF_BASE_ROLE_ID     = '1495432509263974438';
 const SS_SHOP_EMOJI_URL      = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
+const RAVEN_LOGO_URL = SS_SHOP_EMOJI_URL;
+const CAT_GIF_URL = 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif';
 
 // ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
 const DROP_CHANNEL_ID    = '1501965406431219992';
@@ -740,7 +744,30 @@ async function sendOrUpdateMetody() {
     console.error('❌ Błąd metod płatności:', err.message);
   }
 }
+// ─── PROPOZYCJE ───────────────────────────────────────────────────────────────
+function buildPropozycjeMainEmbed() {
+  return new EmbedBuilder()
+    .setColor(0xFFFFFF)
+    .setAuthor({ name: 'RAVEN EXCHANGE × PROPOZYCJE', iconURL: RAVEN_LOGO_URL })
+    .setDescription(
+      '>>> **»** Masz pomysł na ulepszenie serwera?\n' +
+      '**»** Kliknij przycisk poniżej i **wystaw swoją propozycję**.\n' +
+      '**»** Społeczność zagłosuje czy ją **przyjąć** ✅ czy **odrzucić** ❌.'
+    )
+    .setFooter({ text: 'RAVEN EXCHANGE © 2026' })
+    .setTimestamp();
+}
 
+function buildPropozycjeComponents() {
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('propozycja_wystaw')
+      .setLabel('💡 Wystaw propozycję')
+      .setStyle(ButtonStyle.Secondary)
+  )];
+}
+
+async function sendOrUpdatePropozycje() {
 // ─── TICKET: tworzenie ────────────────────────────────────────────────────────
 async function createTicketChannel(guild, user, pelerynka, cenaTekst, metodaKey) {
   const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
@@ -943,6 +970,7 @@ client.once('ready', async () => {
   await sendOrUpdateKalkulator();
   await sendOrUpdateCennik();
   await sendOrUpdateMetody();
+  await sendOrUpdatePropozycje();
 
   setInterval(async () => {
     try {
@@ -1062,7 +1090,31 @@ client.on('messageCreate', async message => {
 
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
+if (
+  interaction.isButton() &&
+  interaction.customId === 'propozycja_wystaw'
+) {
+  const modal = new ModalBuilder()
+    .setCustomId('propozycja_modal')
+    .setTitle('💡 Dodaj propozycję');
 
+  const suggestionInput = new TextInputBuilder()
+    .setCustomId('propozycja_tresc')
+    .setLabel('OPIS PROPOZYCJI')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Napisz swoją propozycję...')
+    .setRequired(true)
+    .setMinLength(10)
+    .setMaxLength(500);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(suggestionInput)
+  );
+
+  await interaction.showModal(modal);
+
+  return;
+}
   // ── DROP: slash command /drop ──────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'drop') {
 
