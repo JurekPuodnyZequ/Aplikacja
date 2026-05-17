@@ -1956,19 +1956,6 @@ if (process.argv.includes('--setup')) {
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
 }
-      .setDescription('Masowe nadawanie ról (ONLY OWNER)')
-      .addStringOption(opt =>
-        opt.setName('mode').setDescription('Tryb').setRequired(true)
-          .addChoices(
-            { name: '👥 Everyone',     value: 'all'     },
-            { name: '🚫 Without role', value: 'without' },
-            { name: '👤 Single user',  value: 'id'      }
-          )
-      )
-      .addStringOption(opt => opt.setName('role_id').setDescription('ID roli').setRequired(true))
-      .addStringOption(opt => opt.setName('user_id').setDescription('ID usera (tylko single)').setRequired(false))
-      .toJSON(),
-    new SlashCommandBuilder()
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
       .toJSON(),
