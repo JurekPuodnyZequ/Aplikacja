@@ -38,10 +38,10 @@ const {
 } = process.env;
 
 const LOG_CHANNEL_ID         = '1495432512506429465';
-const WELCOME_CHANNEL_ID     = '1495432511893803063';
-const KALKULATOR_CHANNEL_ID  = '1498340002323628164';
+const WELCOME_CHANNEL_ID     = '1505521873134424221';
+const KALKULATOR_CHANNEL_ID  = '1505539734007578705';
 const KALKULATOR_MSG_KEY     = 'kalkulator_message_id';
-const TRANSFER_ROLE_ID       = '1495432509263974431';
+const TRANSFER_ROLE_ID       = '1505521872232644685';
 
 const CENNIK_CHANNEL_ID      = '1499896166911840323';
 const CENNIK_MSG_KEY         = 'cennik_message_id';
@@ -49,9 +49,9 @@ const TICKET_CATEGORY_ID     = '1495432511893803060';
 const TICKET_LOG_CHANNEL_ID  = '1495432512506429465';
 const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 
-const METODY_CHANNEL_ID      = '1495432511893803068';
+const METODY_CHANNEL_ID      = '1505521873402855450';
 const METODY_MSG_KEY         = 'metody_message_id';
-const PROPOZYCJE_CHANNEL_ID = '1505273195429892237';
+const PROPOZYCJE_CHANNEL_ID = '1505530602953244864';
 const PROPOZYCJE_MSG_KEY    = 'propozycje_message_id';
 
 const STAFF_BASE_ROLE_ID     = '1495432509263974438';
@@ -60,13 +60,13 @@ const RAVEN_LOGO_URL = SS_SHOP_EMOJI_URL;
 const CAT_GIF_URL = 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif';
 
 // ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
-const DROP_CHANNEL_ID    = '1501965406431219992';
-const DROP_REQUIRED_ROLE = '1501968954627854528';
+const DROP_CHANNEL_ID    = '1505540703604834335';
+const DROP_REQUIRED_ROLE = '1505540086060548116';
 const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000;
 
 // ─── AUTO-ROLA ZA STATUS ──────────────────────────────────────────────────────
-const AUTO_ROLE_ID         = '1501968954627854528';
-const REQUIRED_STATUS_LINK = '.gg/yKPpzUSFpg';
+const AUTO_ROLE_ID         = '1505540086060548116';
+const REQUIRED_STATUS_LINK = '.gg/y5Eu6YgDRY';
 
 // ─── DICE / TOKEN SYSTEM ──────────────────────────────────────────────────────
 const DICE_CHANNEL_ID      = '1502342301433729084';
