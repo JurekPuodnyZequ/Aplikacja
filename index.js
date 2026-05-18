@@ -1,4 +1,3 @@
-at > /mnt/user-data/outputs/index.js << 'ENDOFFILE'
 require('dotenv').config();
 
 const legitCheckMap = new Map();
