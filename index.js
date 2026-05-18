@@ -47,7 +47,11 @@ const METODY_MSG_KEY         = 'metody_message_id';
 const PROPOZYCJE_CHANNEL_ID  = '1505530602953244864';
 const PROPOZYCJE_MSG_KEY     = 'propozycje_message_id';
 
-const MEMBER_COUNT_CHANNEL_ID = '1505521873134424219';
+const MEMBER_COUNT_CHANNEL_ID  = '1505521873134424219';
+const LEGIT_CHECK_CHANNEL_ID   = '1505532967500644412';
+const LEGIT_CHECK_COUNT_KEY    = 'legit_check_count';
+const LEGIT_CHECK2_CHANNEL_ID  = '1505521873402855452';
+const LEGIT_CHECK2_COUNT_KEY   = 'legit_check2_count';
 
 const SS_SHOP_EMOJI_URL      = 'https://i.imgur.com/Y65cjjd.png';
 const RAVEN_LOGO_URL         = SS_SHOP_EMOJI_URL;
@@ -140,6 +144,28 @@ async function updateMemberCount(guild) {
     await channel.setName(`╵👪・${count}`);
   } catch (err) {
     console.error('❌ Błąd updateMemberCount:', err.message);
+  }
+}
+
+// ─── LEGIT CHECK LICZNIK ─────────────────────────────────────────────────────
+async function updateLegitCheckCount(guild, count) {
+  try {
+    const channel = await guild.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
+    if (!channel) return;
+    await channel.setName(`╵✅・ʀᴀᴅᴀʀ-ʟᴇɢɪᴛᴄʜᴇᴄᴋ・${count}`);
+  } catch (err) {
+    console.error('❌ Błąd updateLegitCheckCount:', err.message);
+  }
+}
+
+// ─── LEGIT CHECK 2 LICZNIK ───────────────────────────────────────────────────
+async function updateLegitCheck2Count(guild, count) {
+  try {
+    const channel = await guild.channels.fetch(LEGIT_CHECK2_CHANNEL_ID).catch(() => null);
+    if (!channel) return;
+    await channel.setName(`╵🔎・ʟᴇɢɪᴛ-ᴄʜᴇᴄᴋ・${count}`);
+  } catch (err) {
+    console.error('❌ Błąd updateLegitCheck2Count:', err.message);
   }
 }
 
@@ -556,6 +582,18 @@ client.once('ready', async () => {
 
   const guild = client.guilds.cache.get(GUILD_ID);
   if (guild) await updateMemberCount(guild);
+  if (guild) {
+    const raw = await getConfig(LEGIT_CHECK_COUNT_KEY);
+    const count = raw ? parseInt(raw) : 1;
+    if (!raw) await setConfig(LEGIT_CHECK_COUNT_KEY, '1');
+    await updateLegitCheckCount(guild, count);
+  }
+  if (guild) {
+    const raw2 = await getConfig(LEGIT_CHECK2_COUNT_KEY);
+    const count2 = raw2 ? parseInt(raw2) : 24;
+    if (!raw2) await setConfig(LEGIT_CHECK2_COUNT_KEY, '24');
+    await updateLegitCheck2Count(guild, count2);
+  }
 
   setInterval(async () => {
     try {
@@ -592,6 +630,28 @@ const DISCORD_LINK_REGEX = /(discord\.gg\/|discord\.com\/invite\/|dsc\.gg\/)/i;
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (!message.guild) return;
+
+  if (message.channel.id === LEGIT_CHECK_CHANNEL_ID) {
+    try {
+      const raw = await getConfig(LEGIT_CHECK_COUNT_KEY);
+      const count = (raw ? parseInt(raw) : 0) + 1;
+      await setConfig(LEGIT_CHECK_COUNT_KEY, String(count));
+      await updateLegitCheckCount(message.guild, count);
+    } catch (err) {
+      console.error('❌ Błąd legit check count:', err.message);
+    }
+  }
+
+  if (message.channel.id === LEGIT_CHECK2_CHANNEL_ID) {
+    try {
+      const raw2 = await getConfig(LEGIT_CHECK2_COUNT_KEY);
+      const count2 = (raw2 ? parseInt(raw2) : 24) + 1;
+      await setConfig(LEGIT_CHECK2_COUNT_KEY, String(count2));
+      await updateLegitCheck2Count(message.guild, count2);
+    } catch (err) {
+      console.error('❌ Błąd legit check 2 count:', err.message);
+    }
+  }
 
   if (message.channel.id === DROP_CHANNEL_ID) {
     await message.delete().catch(() => {});
