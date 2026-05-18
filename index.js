@@ -1742,7 +1742,7 @@ process.on('unhandledRejection', err => {
 client.login(BOT_TOKEN);
 
 // ─── REJESTRACJA KOMEND ───────────────────────────────────────────────────────
-if (process.argv.includes('--setup')) {
+if (process.argv.includes('--setup')) {}
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
     new SlashCommandBuilder()
@@ -1893,5 +1893,5 @@ app.get('/callback', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Serwer HTTP działa na porcie ${PORT}`);
+ console.log(`✅ Serwer HTTP działa na porcie ${PORT}`);
 });
