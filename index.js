@@ -1061,6 +1061,90 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: '✅ Wiadomość weryfikacyjna wysłana!', flags: 64 });
     return;
   }
+  // ── SETUP-VERIFY-MATH ─────────────────────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify-math') {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
+    }
+    const embed = new EmbedBuilder()
+      .setColor(0x6a00ff)
+      .setDescription(
+        '> Nie chcesz weryfikować się przez bota?\n' +
+        '> Kliknij przycisk poniżej i rozwiąż krótkie zadanie matematyczne.'
+      )
+      .setFooter({ text: 'Cat Shop | Weryfikacja alternatywna' });
+    await interaction.channel.send({
+      embeds: [embed],
+      components: [new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('verify_math').setLabel('🔢 Zweryfikuj się').setStyle(ButtonStyle.Secondary)
+      )]
+    });
+    await interaction.reply({ content: '✅ Wysłano!', flags: 64 });
+    return;
+  }
+
+  // ── VERIFY MATH: przycisk ─────────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'verify_math') {
+    const a = Math.floor(Math.random() * 20) + 1;
+    const b = Math.floor(Math.random() * 20) + 1;
+    const ops = ['+', '-', '*'];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    let answer;
+    if (op === '+') answer = a + b;
+    if (op === '-') answer = a - b;
+    if (op === '*') answer = a * b;
+    const modal = new ModalBuilder()
+      .setCustomId(`verify_math_modal_${answer}`)
+      .setTitle('🔢 Weryfikacja matematyczna');
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('math_answer')
+        .setLabel(`Ile wynosi ${a} ${op} ${b}?`)
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Wpisz wynik...')
+        .setRequired(true)
+        .setMaxLength(10)
+    ));
+    await interaction.showModal(modal);
+    return;
+  }
+
+  // ── VERIFY MATH: modal ────────────────────────────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('verify_math_modal_')) {
+    const correctAnswer = parseInt(interaction.customId.replace('verify_math_modal_', ''));
+    const userAnswer = parseInt(interaction.fields.getTextInputValue('math_answer').trim());
+    if (isNaN(userAnswer) || userAnswer !== correctAnswer) {
+      await interaction.reply({ content: '❌ Zła odpowiedź! Spróbuj ponownie.', flags: 64 });
+      return;
+    }
+    try {
+      if (interaction.member.roles.cache.has(ROLE_ID)) {
+        await interaction.reply({ content: '✅ Jesteś już zweryfikowany!', flags: 64 });
+        return;
+      }
+      await interaction.member.roles.add(ROLE_ID);
+      const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
+      if (logChannel) {
+        await logChannel.send({
+          embeds: [new EmbedBuilder()
+            .setColor(0x6a00ff)
+            .setTitle('✅ Weryfikacja matematyczna')
+            .addFields(
+              { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
+              { name: '🆔 ID',         value: `\`${interaction.user.id}\``, inline: true },
+              { name: '🕐 Czas',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+            )
+            .setFooter({ text: 'Cat Shop | Weryfikacja matematyczna' })
+            .setTimestamp()]
+        });
+      }
+      await interaction.reply({ content: '✅ Poprawna odpowiedź! Ranga została nadana.', flags: 64 });
+    } catch (err) {
+      console.error('❌ Błąd weryfikacji matematycznej:', err.message);
+      await interaction.reply({ content: '❌ Wystąpił błąd. Spróbuj ponownie.', flags: 64 });
+    }
+    return;
+  }
 
   // ── TRANSFER ──────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'transfer') {
@@ -1317,6 +1401,10 @@ if (process.argv.includes('--setup')) {
       )
       .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ile losowych osób (tryb random)').setRequired(false))
       .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tryb id)').setRequired(false))
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('setup-verify-math')
+      .setDescription('Wysyła alternatywną weryfikację matematyczną')
       .toJSON(),
     new SlashCommandBuilder()
       .setName('zaproszeniamoje')
