@@ -1004,10 +1004,19 @@ async function handleTicketInteraction(interaction) {
       .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
       .setTimestamp();
 
-    await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
+await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
 
     // ─── WYŚLIJ TRANSCRIPT DO LOGÓW ───────────────────────────────────────
     await sendTicketTranscript(channel, interaction.guild, seller, ownerId, kategoria, kwotaZl, kwotaDolary, sukces);
+
+    // ─── JEŚLI TRANSAKCJA NIEUDANA — usuń od razu bez +rep ────────────────
+    if (sukces.toLowerCase() !== 'tak') {
+      await new Promise(r => setTimeout(r, 5000));
+      await channel.delete('Transakcja nieudana — ticket zamknięty').catch(err => {
+        console.error('❌ Błąd usuwania kanału (nieudana transakcja):', err.message);
+      });
+      return true;
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // ─── CZEKAJ NA +REP PRZED ZAMKNIĘCIEM ───────────────────────────────────
