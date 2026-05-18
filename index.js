@@ -47,6 +47,8 @@ const METODY_MSG_KEY         = 'metody_message_id';
 const PROPOZYCJE_CHANNEL_ID  = '1505530602953244864';
 const PROPOZYCJE_MSG_KEY     = 'propozycje_message_id';
 
+const MEMBER_COUNT_CHANNEL_ID = '1505521873134424219';
+
 const SS_SHOP_EMOJI_URL      = 'https://i.imgur.com/Y65cjjd.png';
 const RAVEN_LOGO_URL         = SS_SHOP_EMOJI_URL;
 
@@ -126,6 +128,18 @@ async function checkAndUpdateAutoRole(member) {
     }
   } catch (err) {
     console.error(`❌ Błąd auto-roli ${member?.user?.tag}:`, err);
+  }
+}
+
+// ─── LICZNIK CZŁONKÓW ─────────────────────────────────────────────────────────
+async function updateMemberCount(guild) {
+  try {
+    const channel = await guild.channels.fetch(MEMBER_COUNT_CHANNEL_ID).catch(() => null);
+    if (!channel) return;
+    const count = guild.memberCount;
+    await channel.setName(`╵👪・${count}`);
+  } catch (err) {
+    console.error('❌ Błąd updateMemberCount:', err.message);
   }
 }
 
@@ -539,6 +553,9 @@ client.once('ready', async () => {
   await sendOrUpdateKalkulator();
   await sendOrUpdateMetody();
   await sendOrUpdatePropozycje();
+
+  const guild = client.guilds.cache.get(GUILD_ID);
+  if (guild) await updateMemberCount(guild);
 
   setInterval(async () => {
     try {
@@ -1033,6 +1050,13 @@ client.on('interactionCreate', async interaction => {
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   setTimeout(() => checkAndUpdateAutoRole(member), 3000);
+  await updateMemberCount(member.guild);
+});
+
+// ─── NOWY MEMBER WYSZEDŁ ──────────────────────────────────────────────────────
+client.on('guildMemberRemove', async member => {
+  if (member.guild.id !== GUILD_ID) return;
+  await updateMemberCount(member.guild);
 });
 
 // ─── PRESENCE UPDATE ──────────────────────────────────────────────────────────
