@@ -716,7 +716,7 @@ function buildTicketSetupComponents() {
   )];
 }
 
-function buildTicketChannelEmbed(member, kategoria) {
+function buildTicketChannelEmbed(member, kategoria, metodaPlatnosci, kwotaZakupu) {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({ name: `🐈 CatHub × Ticket | ${TICKET_NAMES[kategoria]}`, iconURL: CATHUB_LOGO_URL })
@@ -728,87 +728,20 @@ function buildTicketChannelEmbed(member, kategoria) {
       `Obsługa zajmie się Tobą jak najszybciej. Prosimy o cierpliwość! 🐈`
     )
     .addFields(
-      { name: '👤 Zgłaszający', value: `<@${member.id}>`, inline: true },
-      { name: '📂 Kategoria',   value: TICKET_NAMES[kategoria], inline: true },
-      { name: '🕐 Otwarty',     value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+      { name: '👤 Zgłaszający',      value: `<@${member.id}>`,      inline: true },
+      { name: '📂 Kategoria',        value: TICKET_NAMES[kategoria], inline: true },
+      { name: '\u200B',              value: '\u200B',                inline: true },
+      { name: '💳 Metoda płatności', value: metodaPlatnosci,         inline: true },
+      { name: '💰 Kwota zakupu',     value: kwotaZakupu,             inline: true },
+      { name: '\u200B',              value: '\u200B',                inline: true },
+      { name: '🕐 Otwarty',         value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
     )
     .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
     .setTimestamp();
 }
 
 function buildTicketActionComponents() {
-  return [new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('ticket_claim').setLabel('✋ Przejmij ticket').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Zamknij ticket').setStyle(ButtonStyle.Danger),
-  )];
-}
-
-async function openTicket(interaction, kategoria) {
-  await interaction.deferReply({ flags: 64 });
-
-  const guild    = interaction.guild;
-  const member   = interaction.member;
-  const category = await guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
-
-  if (!category) {
-    return interaction.editReply({ content: '❌ Nie znaleziono kategorii ticketów. Skontaktuj się z adminem.' });
-  }
-
-  const existing = guild.channels.cache.find(
-    c => c.name === `ticket-${member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}` &&
-         c.parentId === TICKET_CATEGORY_ID
-  );
-  if (existing) {
-    return interaction.editReply({ content: `❌ Masz już otwarty ticket: <#${existing.id}>` });
-  }
-
-  const permissionOverwrites = [
-    { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-    {
-      id: member.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-      ],
-    },
-    {
-      id: guild.members.me.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ManageChannels,
-        PermissionsBitField.Flags.ReadMessageHistory,
-      ],
-    },
-    ...SELLER_ROLE_IDS.map(roleId => ({
-      id: roleId,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-      ],
-    })),
-  ];
-
-  const ticketChannel = await guild.channels.create({
-    name: `ticket-${member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)}`,
-    type: ChannelType.GuildText,
-    parent: TICKET_CATEGORY_ID,
-    permissionOverwrites,
-    topic: `ticket:${kategoria}:${member.id}`,
-  });
-
-  const embed      = buildTicketChannelEmbed(member, kategoria);
-  const components = buildTicketActionComponents();
-  const pings      = TICKET_PINGS[kategoria].join(' ');
-
-  await ticketChannel.send({
-    content: `<@${member.id}> ${pings}`,
-    embeds:  [embed],
-    components,
-  });
-
+  return [new ActionRowBuilder
   // ─── LOG: ticket otwarty ──────────────────────────────────────────────────
   const logCh = guild.channels.cache.get(LOG_CHANNEL_ID);
   if (logCh) {
@@ -833,10 +766,19 @@ async function openTicket(interaction, kategoria) {
 // ─── OBSŁUGA INTERAKCJI TICKET ────────────────────────────────────────────────
 async function handleTicketInteraction(interaction) {
 
-  // ── OTWÓRZ TICKET ──────────────────────────────────────────────────────────
+// ── OTWÓRZ TICKET — przycisk ───────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId.startsWith('ticket_open_')) {
     const kategoria = interaction.customId.replace('ticket_open_', '');
     await openTicket(interaction, kategoria);
+    return true;
+  }
+
+  // ── OTWÓRZ TICKET — modal submit ───────────────────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_open_modal_')) {
+    const kategoria        = interaction.customId.replace('ticket_open_modal_', '');
+    const metodaPlatnosci  = interaction.fields.getTextInputValue('metoda_platnosci').trim();
+    const kwotaZakupu      = interaction.fields.getTextInputValue('kwota_zakupu').trim();
+    await openTicketWithDetails(interaction, kategoria, metodaPlatnosci, kwotaZakupu);
     return true;
   }
 
@@ -1010,8 +952,7 @@ await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
     await sendTicketTranscript(channel, interaction.guild, seller, ownerId, kategoria, kwotaZl, kwotaDolary, sukces);
 
     // ─── JEŚLI TRANSAKCJA NIEUDANA — usuń od razu bez +rep ────────────────
-    if (sukces.toLowerCase() !== 'tak') {
-      await new Promise(r => setTimeout(r, 5000));
+if (sukces.toLowerCase() !== 'tak') {
       await channel.delete('Transakcja nieudana — ticket zamknięty').catch(err => {
         console.error('❌ Błąd usuwania kanału (nieudana transakcja):', err.message);
       });
