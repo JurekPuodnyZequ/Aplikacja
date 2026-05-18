@@ -218,18 +218,27 @@ function getRandomGif() {
   return WELCOME_GIFS[0].url;
 }
 
-async function sendWelcomeMessage(member) {
+async function sendWelcomeMessage(member, inviter = null, inviterCount = 0) {
   try {
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
     if (!welcomeChannel) return;
     const randomGif = getRandomGif();
+
+    let desc =
+      `🐈 Cieszymy się, że dołączyłeś do **Cat Shop**! 🐈\n` +
+      `🐈 Zweryfikuj się i sprawdź naszą ofertę! 🐈\n\n`;
+
+    if (inviter) {
+      desc += `👤 **Zaproszony przez:** <@${inviter.id}>\n`;
+      desc += `🎟️ **Zaproszenia <@${inviter.id}>:** **${inviterCount}**`;
+    } else {
+      desc += `👤 **Zaproszony przez:** nieznany`;
+    }
+
     const welcomeEmbed = new EmbedBuilder()
       .setColor(0x6a00ff)
       .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
-      .setDescription(
-        `🐈 Cieszymy się, że dołączyłeś do **Cat Shop**! 🐈\n` +
-        `🐈 Zweryfikuj się i sprawdź naszą ofertę! 🐈\n\n`
-      )
+      .setDescription(desc)
       .setThumbnail(randomGif)
       .setFooter({ text: 'Cat Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
@@ -277,6 +286,7 @@ async function initDB() {
       nagrody    TEXT DEFAULT '[]'
     )
   `);
+  await pool.query(`DROP TABLE IF EXISTS invites`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS invites (
       user_id  TEXT PRIMARY KEY,
@@ -1164,24 +1174,23 @@ client.on('interactionCreate', async interaction => {
 // ─── NOWY CZŁONEK ─────────────────────────────────────────────────────────────
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
-  setTimeout(() => checkAndUpdateAutoRole(member), 3000);
-  await updateMemberCount(member.guild);
 
   // ── detect who invited ──
   let inviter = null;
   let inviterCount = 0;
   try {
     const newInvites = await member.guild.invites.fetch();
-    const oldCache   = client.inviteCache || new Map();
+    const oldCache = client.inviteCache instanceof Map ? client.inviteCache : new Map();
 
     for (const [code, invite] of newInvites) {
-      const oldUses = oldCache.get(code) || 0;
+      const oldUses = oldCache.get(code) ?? 0;
       if (invite.uses > oldUses && invite.inviter) {
         inviter = invite.inviter;
         break;
       }
     }
 
+    // update cache AFTER finding inviter
     client.inviteCache = new Map(newInvites.map(inv => [inv.code, inv.uses]));
 
     if (inviter) {
@@ -1191,7 +1200,9 @@ client.on('guildMemberAdd', async member => {
     console.error('❌ Błąd invite detect:', err.message);
   }
 
+  await updateMemberCount(member.guild);
   await sendWelcomeMessage(member, inviter, inviterCount);
+  checkAndUpdateAutoRole(member).catch(() => {});
 });
 
 // ─── NOWY MEMBER WYSZEDŁ ──────────────────────────────────────────────────────
@@ -1215,6 +1226,11 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
   } catch (err) {
     console.error('❌ presenceUpdate error:', err);
   }
+});
+
+// ─── GLOBAL ERROR HANDLER ────────────────────────────────────────────────────
+process.on('unhandledRejection', err => {
+  console.error('❌ Unhandled rejection:', err?.message || err);
 });
 
 // ─── LOGOWANIE ────────────────────────────────────────────────────────────────
