@@ -1171,38 +1171,79 @@ client.on('interactionCreate', async interaction => {
 
 });
 
-// ─── NOWY CZŁONEK ─────────────────────────────────────────────────────────────
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
 
-  // ── detect who invited ──
-  let inviter = null;
-  let inviterCount = 0;
-  try {
-    const newInvites = await member.guild.invites.fetch();
-    const oldCache = client.inviteCache instanceof Map ? client.inviteCache : new Map();
+  await updateMemberCount(member.guild);
+  checkAndUpdateAutoRole(member).catch(() => {});
 
-    for (const [code, invite] of newInvites) {
-      const oldUses = oldCache.get(code) ?? 0;
-      if (invite.uses > oldUses && invite.inviter) {
-        inviter = invite.inviter;
-        break;
-      }
-    }
-
-    // update cache AFTER finding inviter
-    client.inviteCache = new Map(newInvites.map(inv => [inv.code, inv.uses]));
-
-    if (inviter) {
-      inviterCount = await incrementInviteCount(inviter.id);
-    }
-  } catch (err) {
-    console.error('❌ Błąd invite detect:', err.message);
+  // Wyślij powitanie natychmiast (bez invitera)
+  const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
+  let welcomeMsg = null;
+  if (welcomeChannel) {
+    const randomGif = getRandomGif();
+    const embedNatychmiast = new EmbedBuilder()
+      .setColor(0x6a00ff)
+      .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
+      .setDescription(
+        `🐈 Cieszymy się, że dołączyłeś do **Cat Shop**! 🐈\n` +
+        `🐈 Zweryfikuj się i sprawdź naszą ofertę! 🐈\n\n` +
+        `👤 **Zaproszony przez:** szukam...`
+      )
+      .setThumbnail(randomGif)
+      .setFooter({ text: 'Cat Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
+      .setTimestamp();
+    welcomeMsg = await welcomeChannel.send({ content: `<@${member.user.id}>`, embeds: [embedNatychmiast] }).catch(() => null);
   }
 
-  await updateMemberCount(member.guild);
-  await sendWelcomeMessage(member, inviter, inviterCount);
-  checkAndUpdateAutoRole(member).catch(() => {});
+  // Invite tracking w tle, potem edytuj wiadomość
+  (async () => {
+    try {
+      const newInvites = await member.guild.invites.fetch();
+      const oldCache = client.inviteCache instanceof Map ? client.inviteCache : new Map();
+
+      let inviter = null;
+      let inviterCount = 0;
+
+      for (const [code, invite] of newInvites) {
+        const oldUses = oldCache.get(code) ?? 0;
+        if (invite.uses > oldUses && invite.inviter) {
+          inviter = invite.inviter;
+          break;
+        }
+      }
+
+      client.inviteCache = new Map(newInvites.map(inv => [inv.code, inv.uses]));
+
+      if (inviter) {
+        inviterCount = await incrementInviteCount(inviter.id);
+      }
+
+      // Edytuj wiadomość z docelową treścią
+      if (welcomeMsg) {
+        const randomGif = getRandomGif();
+        let desc =
+          `🐈 Cieszymy się, że dołączyłeś do **Cat Shop**! 🐈\n` +
+          `🐈 Zweryfikuj się i sprawdź naszą ofertę! 🐈\n\n`;
+        if (inviter) {
+          desc += `👤 **Zaproszony przez:** <@${inviter.id}>\n`;
+          desc += `🎟️ **Zaproszenia <@${inviter.id}>:** **${inviterCount}**`;
+        } else {
+          desc += `👤 **Zaproszony przez:** nieznany`;
+        }
+        const embedFinal = new EmbedBuilder()
+          .setColor(0x6a00ff)
+          .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
+          .setDescription(desc)
+          .setThumbnail(randomGif)
+          .setFooter({ text: 'Cat Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
+          .setTimestamp();
+        await welcomeMsg.edit({ embeds: [embedFinal] }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('❌ Błąd invite detect:', err.message);
+    }
+  })();
 });
 
 // ─── NOWY MEMBER WYSZEDŁ ──────────────────────────────────────────────────────
