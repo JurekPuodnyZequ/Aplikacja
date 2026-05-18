@@ -1173,7 +1173,7 @@ client.once('ready', async () => {
     }
   }
 
-  // ─── RESET LEGIT CHECK 2 COUNT DO 24 — ### USUŃ PO DEPLOY ───────────────
+// ─── RESET LEGIT CHECK 2 COUNT DO 24 — ### USUŃ PO DEPLOY ───────────────
   if (guild) {
     const alreadyReset2 = await getConfig('legit_check2_reset_done');
     if (!alreadyReset2) {
@@ -1186,6 +1186,25 @@ client.once('ready', async () => {
       await updateLegitCheck2Count(guild, raw2 ? parseInt(raw2) : 24);
     }
   }
+
+  setInterval(async () => {
+    try {
+      const guild = client.guilds.cache.get(GUILD_ID);
+      if (!guild) return;
+      const members = await guild.members.fetch({ withPresences: true }).catch(() => null);
+      if (!members) return;
+      for (const [, member] of members) {
+        if (member.user.bot) continue;
+        const presence = member.presence;
+        const isOffline = !presence || presence.status === 'offline' || presence.status === 'invisible';
+        if (isOffline) continue;
+        await checkAndUpdateAutoRole(member);
+      }
+    } catch (err) {
+      console.error('❌ Błąd interwału auto-roli:', err.message);
+    }
+  }, 30 * 1000);
+});
 
 // ─── GUILD MEMBER UPDATE ──────────────────────────────────────────────────────
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
