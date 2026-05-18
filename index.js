@@ -394,12 +394,12 @@ async function refreshAccessToken(userId) {
 const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
   blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 10, emoji: '<:blik:1505930944777818172>' },
-  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1218564381135208568>' },
-  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1218564881117085786>' },
+  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:BTC:1505930861495713922>' },
+  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:LTC:1505930806840004830>' },
   usdt:         { nazwa: 'USDT',                    prowizja: 0,  emoji: '<:USDT:1505930988507762748>' },
   usdc:         { nazwa: 'USDC',                    prowizja: 0,  emoji: '<:USDC:1505930834429874327>' },
   eth:          { nazwa: 'ETH (Ethereum)',           prowizja: 0,  emoji: '<:ether:1505930906957905972>' },
-  paypal:       { nazwa: 'PayPal',                  prowizja: 13, emoji: '<a:pp:713830935908581408>' },
+  paypal:       { nazwa: 'PayPal',                  prowizja: 13, emoji: '<:PP:1505931011530297514>' },
   psc_paragon:  { nazwa: 'PSC z paragonem',         prowizja: 13, emoji: '<:PSC:1505930725109792999>' },
   psc_bez:      { nazwa: 'PSC bez paragonu',        prowizja: 20, emoji: '<:PSC:1505930725109792999>' },
   mypsc:        { nazwa: 'MyPSC (tylko)',            prowizja: 25, emoji: '<:MYPSC:1505930776884281546>' },
@@ -517,12 +517,12 @@ function buildMetodyEmbed() {
         `<:PSC:1505930725109792999> **PSC z paragonem** — \`13%\` prowizji\n` +
         `<:PSC:1505930725109792999> **PSC bez paragonu** — \`20%\` prowizji\n` +
         `<:MYPSC:1505930776884281546> **MyPSC** — \`25%\` prowizji\n` +
-        `<:ltc:1218564881117085786> **LTC (Litecoin)** — \`0%\` prowizji\n` +
-        `<:btc:1218564381135208568> **BTC (Bitcoin)** — \`0%\` prowizji\n` +
+        `<:LTC:1505930806840004830> **LTC (Litecoin)** — \`0%\` prowizji\n` +
+        `<:BTC:1505930861495713922> **BTC (Bitcoin)** — \`0%\` prowizji\n` +
         `<:USDT:1505930988507762748> **USDT** — \`0%\` prowizji\n` +
         `<:USDC:1505930834429874327> **USDC** — \`0%\` prowizji\n` +
         `<:ether:1505930906957905972> **ETH (Ethereum)** — \`0%\` prowizji\n` +
-        `<a:pp:713830935908581408> **PayPal** — \`13%\` prowizji\n`,
+        `<:PP:1505931011530297514> **PayPal** — \`13%\` prowizji\n`,
       inline: false
     })
     .setFooter({ text: 'Cat Shop | Metody Płatności 🐈' })
