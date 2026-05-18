@@ -55,21 +55,9 @@ const PROPOZYCJE_CHANNEL_ID = '1505530602953244864';
 const PROPOZYCJE_MSG_KEY    = 'propozycje_message_id';
 
 const STAFF_BASE_ROLE_ID     = '1495432509263974438';
-const CATSHOP_LOGO_URL       = 'https://i.imgur.com/Y65cjjd.png';
-const SS_SHOP_EMOJI_URL      = CATSHOP_LOGO_URL;
-const RAVEN_LOGO_URL         = CATSHOP_LOGO_URL;
+const SS_SHOP_EMOJI_URL      = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
+const RAVEN_LOGO_URL = SS_SHOP_EMOJI_URL;
 const CAT_GIF_URL = 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif';
-
-// ─── LEGIT CHECK COUNTER ──────────────────────────────────────────────────────
-const LEGIT_RADAR_CHANNEL_ID  = '1505532967500644412'; // ╵✅・ʀᴀᴅᴀʀ-ʟᴇɢɪᴛᴄʜᴇᴄᴋ・1 — start: 1
-const LEGIT_MAIN_CHANNEL_ID   = '1505521873402855452'; // ╵🔎・ʟᴇɢɪᴛ-ᴄʜᴇᴄᴋ・24 — start: 24
-const LEGIT_COUNTER_RADAR_KEY = 'legit_counter_radar';
-const LEGIT_COUNTER_MAIN_KEY  = 'legit_counter_main';
-
-// ─── ZAPROSZENIA ──────────────────────────────────────────────────────────────
-const ZAPROSZENIA_CMD_CHANNEL_ID = '1505521873621094421';
-const ZAPROSZENIA_TICKET_CHANNEL_ID = '1505521873402855449';
-const inviteCache = new Map(); // inviteCode -> uses (snapshot before member joins)
 
 // ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
 const DROP_CHANNEL_ID    = '1505540703604834335';
@@ -80,17 +68,26 @@ const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000;
 const AUTO_ROLE_ID         = '1505540086060548116';
 const REQUIRED_STATUS_LINK = '.gg/y5Eu6YgDRY';
 
+// ─── DICE / TOKEN SYSTEM ──────────────────────────────────────────────────────
+const DICE_CHANNEL_ID      = '1502342301433729084';
+const DICE_REQUIRED_ROLE   = '1502332174723190957';
+const DICE_OWNER_ID        = '1215343846003576872';
+
+const TOKEN_VALUE = 30000;
+
+const activeWins = new Map();
+
 // ─── NAGRODY ──────────────────────────────────────────────────────────────────
 const DROP_NAGRODY = [
-  { nazwa: '-2.5% zniżki w CatShop',    emoji: '🏷️', szansa: 3.68 },
-  { nazwa: '-5% zniżki w CatShop',      emoji: '🏷️', szansa: 1.472 },
-  { nazwa: '-10% zniżki w CatShop',     emoji: '🏷️', szansa: 0.10 },
-  { nazwa: '5k Anarchia',               emoji: '💰', szansa: 1.84 },
-  { nazwa: '8k Anarchia LF',            emoji: '💰', szansa: 0.50 },
-  { nazwa: '15k Anarchia LF',           emoji: '💰', szansa: 0.10 },
-  { nazwa: '1zł do wydania na CatShop', emoji: '💵', szansa: 1.472 },
-  { nazwa: '2zł do wydania na CatShop', emoji: '💵', szansa: 0.736 },
-  { nazwa: '3zł do wydania na CatShop', emoji: '💵', szansa: 0.10 },
+  { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', szansa: 3.68 },
+  { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', szansa: 1.472 },
+  { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', szansa: 0.10 },
+  { nazwa: '5k Anarchia',              emoji: '💰', szansa: 1.84 },
+  { nazwa: '8k Anarchia LF',           emoji: '💰', szansa: 0.50 },
+  { nazwa: '15k Anarchia LF',          emoji: '💰', szansa: 0.10 },
+  { nazwa: '1zł do wydania na SSshop', emoji: '💵', szansa: 1.472 },
+  { nazwa: '2zł do wydania na SSshop', emoji: '💵', szansa: 0.736 },
+  { nazwa: '3zł do wydania na SSshop', emoji: '💵', szansa: 0.10 },
 ];
 
 function losujNagrode() {
@@ -192,7 +189,7 @@ async function logDropResult(interaction, nagroda) {
           inline: false
         }
       )
-      .setFooter({ text: 'CatShop | Drop System', iconURL: CATSHOP_LOGO_URL })
+      .setFooter({ text: 'SS Shop | Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     await logChannel.send({ embeds: [embed] });
@@ -215,7 +212,7 @@ function obliczCeneZProwizja(cenaBaza, prowizjaProcent) {
   return +(cenaBaza + prowizja).toFixed(2);
 }
 
-function buildMetodyTicketuRow(itemKey) {
+function buildMetodyTicketuRow(pelerynkaKey) {
   const options = Object.entries(TICKET_METODY).map(([value, data]) => {
     const label = data.prowizja > 0
       ? `${data.nazwa} (+${data.prowizja}% prowizji)`
@@ -233,11 +230,31 @@ function buildMetodyTicketuRow(itemKey) {
   });
 
   const select = new StringSelectMenuBuilder()
-    .setCustomId(`select_metoda_platnosci_${itemKey}`)
+    .setCustomId(`select_metoda_platnosci_${pelerynkaKey}`)
     .setPlaceholder('💳 Wybierz metodę płatności...')
     .addOptions(options);
 
   return new ActionRowBuilder().addComponents(select);
+}
+
+// ─── PELERYNKI ────────────────────────────────────────────────────────────────
+const PELERYNKI = {
+  'home cape':    { cena: 7,    emoji: '<:HOME:1499901372974497973>',          nazwaDisplay: 'Home Cape'    },
+  'copper cape':  { cena: 10,   emoji: '<:COPPER:1499901582274330675>',        nazwaDisplay: 'Copper Cape'  },
+  'menace':       { cena: 10,   emoji: '<:MENACE:1499901418646012056>',        nazwaDisplay: 'Menace'       },
+  'purple heart': { cena: 18,   emoji: '<:PURPLE_HEART:1499901459796590693>',  nazwaDisplay: 'Purple Heart' },
+  'mce cape':     { cena: 200,  emoji: '<:MCE:1499901525617672322>',           nazwaDisplay: 'MCE Cape'     },
+  'zestaw':       { cena: null, emoji: '🎁',                                   nazwaDisplay: 'Zestaw'       },
+};
+
+function znajdzPelerynke(input) {
+  const lower = input.trim().toLowerCase();
+  for (const [key, data] of Object.entries(PELERYNKI)) {
+    if (lower === key || lower === data.nazwaDisplay.toLowerCase()) {
+      return { key, ...data };
+    }
+  }
+  return null;
 }
 
 // ─── GIFY POWITALNE ────────────────────────────────────────────────────────────
@@ -264,29 +281,20 @@ function getRandomGif() {
   return WELCOME_GIFS[0].url;
 }
 
-async function sendWelcomeMessage(member, inviterUser, inviterCount) {
+async function sendWelcomeMessage(member) {
   try {
     const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
     if (!welcomeChannel) return;
     const randomGif = getRandomGif();
-
-    let inviteInfo = '';
-    if (inviterUser) {
-      inviteInfo = `\n\n👋 Zaproszony przez: **${inviterUser.globalName || inviterUser.username}** (\`${inviterUser.username}\`)\n` +
-                   `📨 ${inviterUser.globalName || inviterUser.username} ma teraz **${inviterCount}** zaproszeń`;
-    }
-
     const welcomeEmbed = new EmbedBuilder()
       .setColor(0x6a00ff)
-      .setTitle(`🐱 Witaj na serwerze, **${member.user.username}**! 🐱`)
+      .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
       .setDescription(
-        `💜 Cieszymy się, że dołączyłeś do **CatShop**! 💜\n` +
-        `💜 Sprawdź naszą ofertę i zweryfikuj się! 💜` +
-        inviteInfo
+        `💜 Cieszymy się, że dołączyłeś do **SS Shop**! 💜\n` +
+        `💜 Zweryfikuj się i sprawdź naszą ofertę pelerynek! 💜\n\n`
       )
       .setThumbnail(randomGif)
-      .setImage(CATSHOP_LOGO_URL)
-      .setFooter({ text: 'CatShop | Witamy!', iconURL: CATSHOP_LOGO_URL })
+      .setFooter({ text: 'SS Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
     await welcomeChannel.send({ content: `<@${member.user.id}>`, embeds: [welcomeEmbed] });
   } catch (err) {
@@ -335,7 +343,7 @@ async function initDB() {
       ticket_id          SERIAL PRIMARY KEY,
       channel_id         TEXT UNIQUE,
       user_id            TEXT,
-      item               TEXT,
+      pelerynka          TEXT,
       cena               TEXT,
       metoda_platnosci   TEXT,
       status             TEXT DEFAULT 'open',
@@ -353,17 +361,11 @@ async function initDB() {
     )
   `);
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS invites (
-      user_id       TEXT PRIMARY KEY,
-      invite_count  INTEGER DEFAULT 0
+    CREATE TABLE IF NOT EXISTS tokens (
+      user_id TEXT PRIMARY KEY,
+      amount  INTEGER DEFAULT 0
     )
   `);
-
-  // Init legit check counters if not set
-  const radarCounter = await getConfig(LEGIT_COUNTER_RADAR_KEY);
-  if (!radarCounter) await setConfig(LEGIT_COUNTER_RADAR_KEY, '1');
-  const mainCounter = await getConfig(LEGIT_COUNTER_MAIN_KEY);
-  if (!mainCounter) await setConfig(LEGIT_COUNTER_MAIN_KEY, '24');
 
   console.log('✅ Baza danych gotowa!');
 }
@@ -410,44 +412,43 @@ async function saveDropData(userId, lastDrop, nagrody) {
   `, [userId, lastDrop, JSON.stringify(nagrody)]);
 }
 
-// ─── INVITE DB HELPERS ────────────────────────────────────────────────────────
-async function getInviteCount(userId) {
-  const res = await pool.query('SELECT invite_count FROM invites WHERE user_id = $1', [userId]);
-  return res.rows.length > 0 ? res.rows[0].invite_count : 0;
+// ─── TOKEN DB HELPERS ─────────────────────────────────────────────────────────
+async function getTokens(userId) {
+  const res = await pool.query('SELECT amount FROM tokens WHERE user_id = $1', [userId]);
+  return res.rows.length > 0 ? res.rows[0].amount : 0;
 }
 
-async function addInviteCount(userId, amount = 1) {
+async function addTokens(userId, amount) {
   await pool.query(`
-    INSERT INTO invites (user_id, invite_count) VALUES ($1, $2)
-    ON CONFLICT (user_id) DO UPDATE SET invite_count = invites.invite_count + $2
+    INSERT INTO tokens (user_id, amount) VALUES ($1, $2)
+    ON CONFLICT (user_id) DO UPDATE SET amount = tokens.amount + $2
   `, [userId, amount]);
-  const res = await pool.query('SELECT invite_count FROM invites WHERE user_id = $1', [userId]);
-  return res.rows[0].invite_count;
 }
 
-// ─── LEGIT CHECK COUNTER HELPERS ─────────────────────────────────────────────
-async function incrementLegitCounter(channelId) {
-  let key, startVal;
-  if (channelId === LEGIT_RADAR_CHANNEL_ID) {
-    key = LEGIT_COUNTER_RADAR_KEY; startVal = 1;
-  } else if (channelId === LEGIT_MAIN_CHANNEL_ID) {
-    key = LEGIT_COUNTER_MAIN_KEY; startVal = 24;
-  } else {
-    return null;
-  }
-  const current = parseInt(await getConfig(key) || String(startVal));
-  const next = current + 1;
-  await setConfig(key, String(next));
-  return current; // returns the number used for THIS legit check
+async function removeTokens(userId, amount) {
+  await pool.query(`
+    UPDATE tokens SET amount = GREATEST(0, amount - $2) WHERE user_id = $1
+  `, [userId, amount]);
 }
 
-async function getLegitCounter(channelId) {
-  if (channelId === LEGIT_RADAR_CHANNEL_ID) {
-    return parseInt(await getConfig(LEGIT_COUNTER_RADAR_KEY) || '1');
-  } else if (channelId === LEGIT_MAIN_CHANNEL_ID) {
-    return parseInt(await getConfig(LEGIT_COUNTER_MAIN_KEY) || '24');
-  }
-  return null;
+async function setTokens(userId, amount) {
+  await pool.query(`
+    INSERT INTO tokens (user_id, amount) VALUES ($1, $2)
+    ON CONFLICT (user_id) DO UPDATE SET amount = $2
+  `, [userId, amount]);
+}
+
+// ─── DICE LOGIC ───────────────────────────────────────────────────────────────
+function getDiceWinChance(numer) {
+  if (numer < 4) return 11;
+  if (numer < 7) return 4;
+  return 1;
+}
+
+function rollDice(wybranyNumer) {
+  const szansa = getDiceWinChance(wybranyNumer);
+  const roll = Math.random() * 100;
+  return { wygral: roll < szansa, roll: Math.floor(roll), szansa };
 }
 
 // ─── TOKEN REFRESH ─────────────────────────────────────────────────────────────
@@ -573,11 +574,11 @@ function buildKalkulatorEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '🐱 CatShop × Kalkulator Prowizji',
-      iconURL: CATSHOP_LOGO_URL
+      name: '💜 SS Shop 💜 × Kalkulator Prowizji',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
-    .setThumbnail(CATSHOP_LOGO_URL)
-    .setTitle('🐱 Kalkulator Prowizji — CatShop')
+    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setTitle('💜 Kalkulator Prowizji — SS Shop 💜')
     .setDescription(
       '>>> Jeżeli chcesz obliczyć **prowizję swojej wymiany**, kliknij odpowiedni przycisk poniżej.\n' +
       'Wybór metody płatności oraz wpisanie kwoty odbywa się w wyskakującym okienku — **nikt inny tego nie zobaczy!**\n\n' +
@@ -591,7 +592,7 @@ function buildKalkulatorEmbed() {
         inline: false
       }
     )
-    .setFooter({ text: 'CatShop | Kalkulator Prowizji 💜' })
+    .setFooter({ text: 'SS Shop | Kalkulator Prowizji 💜' })
     .setTimestamp();
 }
 
@@ -623,19 +624,29 @@ function buildCennikEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '🐱 CatShop × Cennik',
-      iconURL: CATSHOP_LOGO_URL
+      name: '💜 SS Shop 💜 × Cennik Pelerynek',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
-    .setThumbnail(CATSHOP_LOGO_URL)
-    .setTitle('🐱 Cennik — CatShop')
+    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setTitle('💜 Cennik Pelerynek — SS Shop 💜')
     .setDescription(
-      '>>> Poniżej znajdziesz aktualny cennik dostępny w **CatShop**.\n\n' +
+      '>>> Poniżej znajdziesz aktualny cennik pelerynek dostępnych w **SS Shop**.\n\n' +
       '**Zestawy** ustalamy indywidualnie — napisz do nas na tickecie! 🎁'
     )
     .addFields(
       {
-        name: '🎫 Jak kupić?',
-        value: 'Kliknij przycisk **🛍️ Otwórz ticket** poniżej, aby otworzyć ticket.',
+        name: '🛒 Dostępne pelerynki',
+        value:
+          `<:HOME:1499901372974497973> **Home Cape** — \`7 zł\`\n` +
+          `<:COPPER:1499901582274330675> **Copper Cape** — \`10 zł\`\n` +
+          `<:MENACE:1499901418646012056> **Menace Cape** — \`10 zł\`\n` +
+          `<:PURPLE_HEART:1499901459796590693> **Purple Heart** — \`18 zł\`\n` +
+          `<:MCE:1499901525617672322> **MCE Cape** — \`200 zł\`\n`,
+        inline: false
+      },
+      {
+        name: '🎁 Zestawy',
+        value: 'Zestawy pelerynek wyceniamy indywidualnie.\nStwórz ticket i podaj, jakie pelerynki Cię interesują!',
         inline: false
       },
       {
@@ -646,17 +657,22 @@ function buildCennikEmbed() {
           `<:paypal:1498357795433746653> **PayPal** — +5% prowizji\n` +
           `<:psc:1498356914013339705> **PSC** — +10% prowizji`,
         inline: false
+      },
+      {
+        name: '🎫 Jak kupić?',
+        value: 'Kliknij przycisk **🛍️ Kup pelerynkę** poniżej, aby otworzyć ticket.',
+        inline: false
       }
     )
-    .setFooter({ text: 'CatShop | Cennik 💜' })
+    .setFooter({ text: 'SS Shop | Cennik Pelerynek 💜' })
     .setTimestamp();
 }
 
 function buildCennikComponents() {
   return [new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId('otworz_ticket')
-      .setLabel('🛍️ Otwórz ticket')
+      .setCustomId('kup_pelerynke')
+      .setLabel('🛍️ Kup pelerynkę')
       .setStyle(ButtonStyle.Primary),
   )];
 }
@@ -689,13 +705,13 @@ function buildMetodyEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '🐱 CatShop × Metody Płatności',
-      iconURL: CATSHOP_LOGO_URL
+      name: '💜 SS Shop 💜 × Metody Płatności',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
-    .setThumbnail(CATSHOP_LOGO_URL)
-    .setTitle('🐱 Metody Płatności — CatShop')
+    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setTitle('💜 Metody Płatności — SS Shop 💜')
     .setDescription(
-      '>>> Poniżej znajdziesz wszystkie dostępne metody płatności w **CatShop** wraz z prowizjami.\n\n' +
+      '>>> Poniżej znajdziesz wszystkie dostępne metody płatności w **SS Shop** wraz z prowizjami.\n\n' +
       '**Przy tworzeniu ticketa wpisz dokładną nazwę metody płatności**, np: `PSC bez paragonu`.'
     )
     .addFields({
@@ -714,7 +730,7 @@ function buildMetodyEmbed() {
         `<:paypal:1498357795433746653> **PayPal** — \`13%\` prowizji\n`,
       inline: false
     })
-    .setFooter({ text: 'CatShop | Metody Płatności 💜' })
+    .setFooter({ text: 'SS Shop | Metody Płatności 💜' })
     .setTimestamp();
 }
 
@@ -744,13 +760,13 @@ async function sendOrUpdateMetody() {
 function buildPropozycjeMainEmbed() {
   return new EmbedBuilder()
     .setColor(0xFFFFFF)
-    .setAuthor({ name: 'CatShop × PROPOZYCJE', iconURL: CATSHOP_LOGO_URL })
+    .setAuthor({ name: 'SSshop × PROPOZYCJE', iconURL: RAVEN_LOGO_URL })
     .setDescription(
       '>>> **»** Masz pomysł na ulepszenie serwera?\n' +
       '**»** Kliknij przycisk poniżej i **wystaw swoją propozycję**.\n' +
       '**»** Społeczność zagłosuje czy ją **przyjąć** ✅ czy **odrzucić** ❌.'
     )
-    .setFooter({ text: 'CatShop © 2026' })
+    .setFooter({ text: 'SSshop © 2026' })
     .setTimestamp();
 }
 
@@ -787,7 +803,7 @@ async function sendOrUpdatePropozycje() {
 }
 
 // ─── TICKET: tworzenie ────────────────────────────────────────────────────────
-async function createTicketChannel(guild, user, itemName, cenaTekst, metodaKey) {
+async function createTicketChannel(guild, user, pelerynka, cenaTekst, metodaKey) {
   const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
 
   const existing = await pool.query(
@@ -829,7 +845,7 @@ async function createTicketChannel(guild, user, itemName, cenaTekst, metodaKey) 
     name: ticketName,
     type: ChannelType.GuildText,
     permissionOverwrites,
-    topic: `Otwarty ticket | ${user.tag} | ${itemName} | ${cenaTekst}`,
+    topic: `Otwarty ticket | ${user.tag} | ${pelerynka} | ${cenaTekst}`,
   };
 
   try {
@@ -839,35 +855,35 @@ async function createTicketChannel(guild, user, itemName, cenaTekst, metodaKey) 
 
   const ticketChannel = await guild.channels.create(channelOptions);
   await pool.query(
-    `INSERT INTO tickets (channel_id, user_id, item, cena, metoda_platnosci, status) VALUES ($1,$2,$3,$4,$5,'open')`,
-    [ticketChannel.id, user.id, itemName, cenaTekst, metodaKey]
+    `INSERT INTO tickets (channel_id, user_id, pelerynka, cena, metoda_platnosci, status) VALUES ($1,$2,$3,$4,$5,'open')`,
+    [ticketChannel.id, user.id, pelerynka, cenaTekst, metodaKey]
   );
 
   return { exists: false, channel: ticketChannel };
 }
 
 // ─── TICKET: wiadomość powitalna ──────────────────────────────────────────────
-async function sendTicketWelcome(ticketChannel, user, itemName, cenaTekst, metodaKey) {
+async function sendTicketWelcome(ticketChannel, user, pelerynkaNazwa, cenaTekst, metodaKey) {
   const metoda = TICKET_METODY[metodaKey];
   const metodaNazwa = metoda ? `${metoda.emoji} ${metoda.nazwa}` : 'nieznana';
 
   const embed = new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '🐱 CatShop × Nowy Ticket',
-      iconURL: CATSHOP_LOGO_URL
+      name: '💜 SS Shop 💜 × Nowy Ticket',
+      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
     .setTitle("🛍️ Twój ticket został otwarty")
     .setDescription(
       `Witaj <@${user.id}>! 💜\n\n` +
       `Dziękujemy za zainteresowanie naszą ofertą. Twój ticket został pomyślnie utworzony.\n\n` +
       `**Szczegóły zgłoszenia:**\n` +
-      `> 🛒 Produkt: **${itemName}**\n` +
+      `> 🛒 Pelerynka: **${pelerynkaNazwa}**\n` +
       `> 💵 Cena: **${cenaTekst}**\n` +
       `> 💳 Metoda płatności: **${metodaNazwa}**\n\n` +
       `Proszę cierpliwie czekać, członek naszej obsługi zaraz się Tobą zajmie! 💜`
     )
-    .setFooter({ text: 'CatShop | System Ticketów 💜' })
+    .setFooter({ text: 'SS Shop | System Ticketów 💜' })
     .setTimestamp();
 
   const actionRow = new ActionRowBuilder().addComponents(
@@ -913,13 +929,13 @@ async function closeTicket(ticketChannel, closedBy) {
           .setTitle('🔒 Ticket zamknięty — Transcript')
           .addFields(
             { name: '👤 Użytkownik',      value: ticket.user_id ? `<@${ticket.user_id}>` : 'nieznany', inline: true },
-            { name: '🛒 Produkt',          value: ticket.item || ticket.pelerynka || 'nieznana',         inline: true },
+            { name: '🛒 Pelerynka',        value: ticket.pelerynka || 'nieznana',                       inline: true },
             { name: '💵 Cena',             value: ticket.cena || 'nieznana',                            inline: true },
             { name: '💳 Metoda płatności', value: metodaInfo,                                           inline: true },
             { name: '🔒 Zamknął',          value: closedBy?.tag || closedBy?.username || 'nieznany',    inline: true },
             { name: '📅 Data',             value: `<t:${Math.floor(Date.now() / 1000)}:F>`,             inline: true }
           )
-          .setFooter({ text: 'CatShop | System Ticketów 💜' })
+          .setFooter({ text: 'SS Shop | System Ticketów 💜' })
           .setTimestamp();
 
         const transcriptBuffer = Buffer.from(transcript || '(brak wiadomości)', 'utf-8');
@@ -946,12 +962,12 @@ async function closeTicket(ticketChannel, closedBy) {
 async function sendViaWebhook(channel, content, username, avatarURL) {
   try {
     const webhooks = await channel.fetchWebhooks();
-    let webhook = webhooks.find(w => w.owner?.id === client.user?.id && w.name === 'CatShop LC');
+    let webhook = webhooks.find(w => w.owner?.id === client.user?.id && w.name === 'SS Shop LC');
 
     if (!webhook) {
       webhook = await channel.createWebhook({
-        name: 'CatShop LC',
-        avatar: CATSHOP_LOGO_URL,
+        name: 'SS Shop LC',
+        avatar: SS_SHOP_EMOJI_URL,
         reason: 'Auto legit check webhook'
       });
     }
@@ -977,7 +993,6 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildPresences,
-    GatewayIntentBits.GuildInvites,
     GatewayIntentBits.MessageContent
   ]
 });
@@ -990,18 +1005,6 @@ client.once('ready', async () => {
   await sendOrUpdateCennik();
   await sendOrUpdateMetody();
   await sendOrUpdatePropozycje();
-
-  // ─── Załaduj cache zaproszeń ─────────────────────────────────────────────
-  try {
-    const guild = client.guilds.cache.get(GUILD_ID);
-    if (guild) {
-      const invites = await guild.invites.fetch();
-      invites.forEach((invite, code) => inviteCache.set(code, invite.uses));
-      console.log(`✅ Załadowano ${inviteCache.size} zaproszeń do cache`);
-    }
-  } catch (err) {
-    console.error('❌ Błąd ładowania cache zaproszeń:', err.message);
-  }
 
   setInterval(async () => {
     try {
@@ -1078,7 +1081,7 @@ client.on('messageCreate', async message => {
             { name: '⏱️ Czas',       value: '7 dni',                                            inline: true },
             { name: '🕐 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,           inline: true }
           )
-          .setFooter({ text: 'CatShop | System anty-link' })]
+          .setFooter({ text: 'SS Shop | System anty-link' })]
       });
     }
   } catch (err) {
@@ -1089,30 +1092,12 @@ client.on('messageCreate', async message => {
 // ─── LEGIT CHECK LISTENER ────────────────────────────────────────────────────
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
-  const isLegitChannel =
-    message.channel.id === LEGIT_CHECK_CHANNEL_ID ||
-    message.channel.id === LEGIT_RADAR_CHANNEL_ID ||
-    message.channel.id === LEGIT_MAIN_CHANNEL_ID;
-  if (!isLegitChannel) return;
+  if (message.channel.id !== LEGIT_CHECK_CHANNEL_ID) return;
 
   const match = message.content.match(/^\+rep <@!?(\d+)> .+ \d+ PLN$/i);
   if (!match) return;
 
   await message.react('✅').catch(() => {});
-
-  // ─── Zlicz legit check jeśli kanał ma licznik ────────────────────────────
-  if (message.channel.id === LEGIT_RADAR_CHANNEL_ID || message.channel.id === LEGIT_MAIN_CHANNEL_ID) {
-    try {
-      const number = await incrementLegitCounter(message.channel.id);
-      // Update channel name with new counter
-      const channelName = message.channel.id === LEGIT_RADAR_CHANNEL_ID
-        ? `╵✅・ʀᴀᴅᴀʀ-ʟᴇɢɪᴛᴄʜᴇᴄᴋ・${number}`
-        : `╵🔎・ʟᴇɢɪᴛ-ᴄʜᴇᴄᴋ・${number}`;
-      await message.channel.setName(channelName).catch(() => {});
-    } catch (err) {
-      console.error('❌ Błąd incrementowania licznika legit check:', err.message);
-    }
-  }
 
   for (const [channelId, done] of legitCheckMap.entries()) {
     if (done) continue;
@@ -1166,12 +1151,12 @@ client.on('interactionCreate', async interaction => {
 
     const propEmbed = new EmbedBuilder()
       .setColor(0xFFFFFF)
-      .setAuthor({ name: 'CatShop × PROPOZYCJA', iconURL: CATSHOP_LOGO_URL })
+      .setAuthor({ name: 'SS Shop × PROPOZYCJA', iconURL: SS_SHOP_EMOJI_URL })
       .setDescription(
         '> 👤 <@' + user.id + '>\n' +
         '> 💡 *' + tresc + '*'
       )
-      .setFooter({ text: 'CatShop © 2026', iconURL: SS_SHOP_EMOJI_URL })
+      .setFooter({ text: 'SS Shop © 2026', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     try {
@@ -1202,29 +1187,6 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── ZAPROSZENIAMOJE ───────────────────────────────────────────────────────
-  if (interaction.isChatInputCommand() && interaction.commandName === 'zaproszeniamoje') {
-    if (interaction.channel.id !== ZAPROSZENIA_CMD_CHANNEL_ID) {
-      return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${ZAPROSZENIA_CMD_CHANNEL_ID}>!`, flags: 64 });
-    }
-
-    const count = await getInviteCount(interaction.user.id);
-    const embed = new EmbedBuilder()
-      .setColor(0x6a00ff)
-      .setAuthor({ name: 'CatShop × Zaproszenia', iconURL: CATSHOP_LOGO_URL })
-      .setTitle('📨 Twoje zaproszenia')
-      .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
-      .setDescription(
-        `Cześć <@${interaction.user.id}>! 👋\n\n` +
-        `📨 Masz **${count}** zaproszeń na serwerze.\n\n` +
-        `💜 Aby odebrać nagrody za zaproszenia, stwórz ticket na kanale <#${ZAPROSZENIA_TICKET_CHANNEL_ID}>!`
-      )
-      .setFooter({ text: 'CatShop | System Zaproszeń 💜', iconURL: CATSHOP_LOGO_URL })
-      .setTimestamp();
-
-    return interaction.reply({ embeds: [embed], flags: 64 });
-  }
-
   // ── DROP ──────────────────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'drop') {
 
@@ -1236,8 +1198,8 @@ client.on('interactionCreate', async interaction => {
     if (!hasRole) {
       const errEmbed = new EmbedBuilder()
         .setColor(0xFF4444)
-        .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 CatShop × DROP')
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1245,7 +1207,7 @@ client.on('interactionCreate', async interaction => {
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
         )
-        .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
       return interaction.reply({ embeds: [errEmbed] });
     }
@@ -1257,8 +1219,8 @@ client.on('interactionCreate', async interaction => {
     if (remaining > 0) {
       const embed = new EmbedBuilder()
         .setColor(0xff4444)
-        .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 CatShop × DROP')
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1267,7 +1229,7 @@ client.on('interactionCreate', async interaction => {
           { name: '❌ Wynik', value: 'Masz Cooldown! — poczekaj 2h!', inline: false },
           { name: '⏳ Dostępny za', value: `<t:${Math.floor((dropData.last_drop + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: false },
         )
-        .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed], flags: 64 });
@@ -1281,8 +1243,8 @@ client.on('interactionCreate', async interaction => {
 
       const embed = new EmbedBuilder()
         .setColor(0x2B2D31)
-        .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 CatShop × DROP')
+        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 SSshop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1291,7 +1253,7 @@ client.on('interactionCreate', async interaction => {
           { name: '❌ Wynik', value: 'Tym razem nic się nie trafiło. Spróbuj za 2 godziny!', inline: false },
           { name: '⏳ Następny drop', value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: false },
         )
-        .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed] });
@@ -1303,8 +1265,8 @@ client.on('interactionCreate', async interaction => {
 
     const embedWin = new EmbedBuilder()
       .setColor(0x6a00ff)
-      .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-      .setTitle('🎁 CatShop × DROP')
+      .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+      .setTitle('🎁 SSshop × DROP')
       .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
       .addFields(
         { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1314,10 +1276,281 @@ client.on('interactionCreate', async interaction => {
         { name: '⏳ Następny drop', value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: true },
         { name: '\u200B', value: '\u200B', inline: true },
       )
-      .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+      .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     return interaction.reply({ embeds: [embedWin] });
+  }
+
+  // ── TOKENGIVE ─────────────────────────────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'tokengive') {
+    if (interaction.user.id !== DICE_OWNER_ID) {
+      return interaction.reply({ content: '❌ Nie masz uprawnień do tej komendy.', flags: 64 });
+    }
+
+    const targetUser = interaction.options.getUser('uzytkownik');
+    const ilosc      = interaction.options.getInteger('ilosc');
+
+    if (!targetUser || !ilosc || ilosc <= 0) {
+      return interaction.reply({ content: '❌ Podaj prawidłowego użytkownika i ilość tokenów.', flags: 64 });
+    }
+
+    await addTokens(targetUser.id, ilosc);
+    const nowyBalans = await getTokens(targetUser.id);
+
+    const embed = new EmbedBuilder()
+      .setColor(0x6a00ff)
+      .setTitle('🎟️ Tokeny nadane!')
+      .setThumbnail(targetUser.displayAvatarURL({ extension: 'png', size: 256 }))
+      .addFields(
+        { name: '👤 Użytkownik',    value: `<@${targetUser.id}> (\`${targetUser.username}\`)`, inline: true },
+        { name: '🎟️ Dodano tokenów', value: `**${ilosc}**`,                                    inline: true },
+        { name: '💰 Nowy balans',   value: `**${nowyBalans}** tokenów`,                        inline: true }
+      )
+      .setFooter({ text: 'SS Shop | System Tokenów', iconURL: SS_SHOP_EMOJI_URL })
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  // ── DICE ──────────────────────────────────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'dice') {
+    if (interaction.channel.id !== DICE_CHANNEL_ID) {
+      return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DICE_CHANNEL_ID}>!`, flags: 64 });
+    }
+
+    const hasRole = interaction.member.roles.cache.has(DICE_REQUIRED_ROLE);
+    if (!hasRole) {
+      return interaction.reply({ content: '❌ Nie masz wymaganej rangi do użycia tej komendy!', flags: 64 });
+    }
+
+    const tokeny = await getTokens(interaction.user.id);
+    if (tokeny < 1) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff4444)
+        .setTitle('🎲 SSshop × Dice')
+        .setDescription(`❌ **Nie masz żetonów!**\nKup żetony, aby móc grać.\n\n🎟️ Twój balans: **0 tokenów**`)
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], flags: 64 });
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId('modal_dice')
+      .setTitle('🎲 Dice — SS Shop');
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('stawka_tokenow')
+          .setLabel(`Stawka w tokenach (masz ${tokeny}, 1 token = 30k $)`)
+          .setPlaceholder('np. 1, 2, 5')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(5)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('wybrany_numerek')
+          .setLabel('Wybierz numerek od 1 do 10')
+          .setPlaceholder('Wpisz liczbę od 1 do 10')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(2)
+      )
+    );
+
+    await interaction.showModal(modal);
+    return;
+  }
+
+  // ── MODAL: DICE ───────────────────────────────────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId === 'modal_dice') {
+    if (interaction.channel.id !== DICE_CHANNEL_ID) {
+      return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DICE_CHANNEL_ID}>!`, flags: 64 });
+    }
+    const hasRole = interaction.member.roles.cache.has(DICE_REQUIRED_ROLE);
+    if (!hasRole) {
+      return interaction.reply({ content: '❌ Nie masz wymaganej rangi!', flags: 64 });
+    }
+
+    const stawkaInput  = interaction.fields.getTextInputValue('stawka_tokenow').trim();
+    const numerekInput = interaction.fields.getTextInputValue('wybrany_numerek').trim();
+
+    const stawkaTokeny = parseInt(stawkaInput, 10);
+    const numerek      = parseInt(numerekInput, 10);
+
+    if (isNaN(stawkaTokeny) || stawkaTokeny < 1) {
+      return interaction.reply({ content: '❌ Nieprawidłowa stawka! Wpisz liczbę tokenów, np. `1`, `2`, `5`.', flags: 64 });
+    }
+
+    if (isNaN(numerek) || numerek < 1 || numerek > 10) {
+      return interaction.reply({ content: '❌ Nieprawidłowy numerek! Wybierz liczbę od **1 do 10**.', flags: 64 });
+    }
+
+    const tokeny = await getTokens(interaction.user.id);
+    if (tokeny < stawkaTokeny) {
+      const embed = new EmbedBuilder()
+        .setColor(0xff4444)
+        .setTitle('🎲 SSshop × Dice — Brak tokenów!')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setDescription(
+          `❌ **Nie masz wystarczająco tokenów!**\n\n` +
+          `🎟️ Twój balans: **${tokeny} tokenów**\n` +
+          `🎯 Chciałeś postawić: **${stawkaTokeny} tokenów**\n\n` +
+          `Brakuje Ci **${stawkaTokeny - tokeny}** tokenów.`
+        )
+        .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], flags: 64 });
+    }
+
+    await removeTokens(interaction.user.id, stawkaTokeny);
+    const tokenyPo = await getTokens(interaction.user.id);
+
+    await interaction.deferReply();
+
+    const wartoscStawki = stawkaTokeny * TOKEN_VALUE;
+    const wygranaSum    = wartoscStawki * numerek;
+    const { wygral, roll, szansa } = rollDice(numerek);
+
+    const kostki = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+    const randomKostka = () => kostki[Math.floor(Math.random() * kostki.length)];
+
+    await interaction.editReply({
+      content: `🎲 Rzucam kostką... ${randomKostka()} ${randomKostka()} ${randomKostka()}`
+    });
+
+    await new Promise(r => setTimeout(r, 1200));
+
+    if (wygral) {
+      activeWins.set(interaction.user.id, {
+        wygrana: wygranaSum,
+        timestamp: Date.now()
+      });
+
+      const embedWin = new EmbedBuilder()
+        .setColor(0x00cc44)
+        .setTitle('🎲 SSshop × Dice — WYGRANA! 🎉')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .addFields(
+          { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                inline: true  },
+          { name: '🎯 Twój numerek',        value: `**${numerek}**`,                                          inline: true  },
+          { name: '🎟️ Postawiono tokenów',  value: `**${stawkaTokeny}** (= ${formatDolary(wartoscStawki)} $)`, inline: true  },
+          { name: '🏆 Wygrana',            value: `**${formatDolary(wygranaSum)} $** (x${numerek})`,          inline: true  },
+          { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                         inline: true  }
+        )
+        .setDescription(
+          `🎉 **WYGRAŁEŚ!** Trafiłeś numerek **${numerek}**!\n\n` +
+          `Stawka: **${stawkaTokeny} tokenów** × **${numerek}** = **${formatDolary(wygranaSum)} $**\n` +
+          `*(${stawkaTokeny} tokenów × 30k × ${numerek} = ${formatDolary(wygranaSum)} $)*\n\n` +
+          `💡 Użyj \`/double\` aby podwoić wygraną (lub stracić wszystko)!`
+        )
+        .setFooter({ text: `SS Shop | Dice System`, iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+
+      return interaction.editReply({ content: null, embeds: [embedWin] });
+
+    } else {
+      activeWins.delete(interaction.user.id);
+
+      const embedLose = new EmbedBuilder()
+        .setColor(0xff4444)
+        .setTitle('🎲 SSshop × Dice — Przegrana')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .addFields(
+          { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                  inline: true },
+          { name: '🎯 Twój numerek',        value: `**${numerek}**`,                                            inline: true },
+          { name: '🎟️ Postawiono tokenów',  value: `**${stawkaTokeny}** (= ${formatDolary(wartoscStawki)} $)`,  inline: true },
+          { name: '💸 Przegrana',           value: `**${formatDolary(wartoscStawki)} $**`,                      inline: true },
+          { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                           inline: true }
+        )
+        .setDescription(`❌ **Nie trafiłeś!** Tym razem szczęście nie dopisało.\n\nSpróbuj ponownie — żetonów można kupić więcej!`)
+        .setFooter({ text: `SS Shop | Dice System `, iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+
+      return interaction.editReply({ content: null, embeds: [embedLose] });
+    }
+  }
+
+  // ── DOUBLE ────────────────────────────────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'double') {
+    if (interaction.channel.id !== DICE_CHANNEL_ID) {
+      return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${DICE_CHANNEL_ID}>!`, flags: 64 });
+    }
+
+    const hasRole = interaction.member.roles.cache.has(DICE_REQUIRED_ROLE);
+    if (!hasRole) {
+      return interaction.reply({ content: '❌ Nie masz wymaganej rangi!', flags: 64 });
+    }
+
+    const winData = activeWins.get(interaction.user.id);
+    if (!winData) {
+      return interaction.reply({
+        content: '❌ **Nie masz aktywnej wygranej!**\nMusisz najpierw wygrać w `/dice`, żeby użyć `/double`.',
+        flags: 64
+      });
+    }
+
+    const { wygrana } = winData;
+
+    await interaction.deferReply();
+
+    const wygranaDouble = Math.random() < 0.01;
+
+    const kostki = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+    await interaction.editReply({
+      content: `🎲 Double or Nothing... ${kostki[Math.floor(Math.random() * kostki.length)]} ${kostki[Math.floor(Math.random() * kostki.length)]}`
+    });
+
+    await new Promise(r => setTimeout(r, 1200));
+
+    activeWins.delete(interaction.user.id);
+
+    if (wygranaDouble) {
+      const wygranaX2 = wygrana * 2;
+
+      const embedWin = new EmbedBuilder()
+        .setColor(0xFFD700)
+        .setTitle('🎲 SSshop × Double — DOUBLE WYGRANA! 🎉🎉')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setDescription(
+          `🔥 **NIESAMOWITE!** Podwoiłeś swoją wygraną!\n\n` +
+          `Poprzednia wygrana: **${formatDolary(wygrana)} $**\n` +
+          `✅ Nowa wygrana po double: **${formatDolary(wygranaX2)} $**\n\n` +
+          `Gratulacje! 🏆`
+        )
+        .addFields(
+          { name: '👤 Gracz',          value: `<@${interaction.user.id}>`,         inline: true },
+          { name: '💰 Poprzednia',      value: `**${formatDolary(wygrana)} $**`,    inline: true },
+          { name: '🏆 Po double (x2)', value: `**${formatDolary(wygranaX2)} $**`,  inline: true }
+        )
+        .setFooter({ text: 'SS Shop | Double System', iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+
+      return interaction.editReply({ content: null, embeds: [embedWin] });
+
+    } else {
+      const embedLose = new EmbedBuilder()
+        .setColor(0xff0000)
+        .setTitle('🎲 SSshop × Double — Straciłeś wszystko!')
+        .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+        .setDescription(
+          `💸 **Tym razem się nie udało...**\n\n` +
+          `Straciłeś całą wygraną: **${formatDolary(wygrana)} $**\n\n` +
+          `Takie jest ryzyko double — następnym razem może pójdzie lepiej!`
+        )
+        .addFields(
+          { name: '👤 Gracz',     value: `<@${interaction.user.id}>`,       inline: true },
+          { name: '💸 Stracono', value: `**${formatDolary(wygrana)} $**`,   inline: true },
+          { name: '😭 Wynik',    value: '**Nic**',                           inline: true }
+        )
+        .setFooter({ text: 'SS Shop | Double System', iconURL: SS_SHOP_EMOJI_URL })
+        .setTimestamp();
+
+      return interaction.editReply({ content: null, embeds: [embedLose] });
+    }
   }
 
   // ── MASSROLE ──────────────────────────────────────────────────────────────
@@ -1423,7 +1656,7 @@ client.on('interactionCreate', async interaction => {
     const dolary         = po_prowizji_zl * PRZELICZNIK;
     await interaction.reply({
       content:
-        `💜 **Wynik kalkulatora CatShop:**\n\n` +
+        `💜 **Wynik kalkulatora SS Shop:**\n\n` +
         `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
         `💵 Wysyłasz: **${kwotaZl.toFixed(2)} zł**\n` +
         `💸 Prowizja (\`${metoda.prowizja}%\`): **-${prowizja_zl.toFixed(2)} zł**\n` +
@@ -1462,7 +1695,7 @@ client.on('interactionCreate', async interaction => {
     const prowizja_zl    = do_zaplaty_zl - bazowa_cena_zl;
     await interaction.reply({
       content:
-        `💜 **Wynik kalkulatora CatShop:**\n\n` +
+        `💜 **Wynik kalkulatora SS Shop:**\n\n` +
         `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
         `💜 Chcesz otrzymać: **${formatDolary(dolary)} $**\n` +
         `💸 Prowizja (\`${metoda.prowizja}%\`): **+${prowizja_zl.toFixed(2)} zł**\n` +
@@ -1472,52 +1705,103 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── OTWÓRZ TICKET ─────────────────────────────────────────────────────────
-  if (interaction.isButton() && interaction.customId === 'otworz_ticket') {
-    const modal = new ModalBuilder().setCustomId('modal_otworz_ticket').setTitle('🛍️ Otwórz ticket — CatShop');
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('temat_ticketu')
-          .setLabel('W jakiej sprawie otwierasz ticket?')
-          .setPlaceholder('np. Zakup, Problem, Pytanie...')
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setMaxLength(100)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId('opis_ticketu')
-          .setLabel('Opisz dokładnie czego potrzebujesz')
-          .setPlaceholder('Podaj szczegóły...')
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
-          .setMaxLength(500)
-      )
-    );
+  // ── KUP PELERYNKĘ ──────────────────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'kup_pelerynke') {
+    const modal = new ModalBuilder().setCustomId('modal_kup_pelerynke').setTitle('🛍️ Zakup pelerynki — SS Shop');
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('nazwa_pelerynki')
+        .setLabel('Wpisz PEŁNĄ nazwę pelerynki lub "zestaw"')
+        .setPlaceholder('np. Home Cape / Copper Cape / Purple Heart / MCE Cape / Menace / zestaw')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(50)
+    ));
     await interaction.showModal(modal);
     return;
   }
 
-  if (interaction.isModalSubmit() && interaction.customId === 'modal_otworz_ticket') {
-    const temat = interaction.fields.getTextInputValue('temat_ticketu').trim();
-    const opis  = interaction.fields.getTextInputValue('opis_ticketu').trim();
+  if (interaction.isModalSubmit() && interaction.customId === 'modal_kup_pelerynke') {
+    const input     = interaction.fields.getTextInputValue('nazwa_pelerynki');
+    const pelerynka = znajdzPelerynke(input);
+
+    if (!pelerynka) {
+      await interaction.reply({
+        content:
+          `❌ **Nie rozpoznano nazwy pelerynki!**\n\n` +
+          `Musisz wpisać **pełną nazwę** jednej z pelerynek:\n` +
+          `> \`Home Cape\`, \`Copper Cape\`, \`Menace\`, \`Purple Heart\`, \`MCE Cape\`\n` +
+          `> lub \`zestaw\` jeśli chcesz kupić kilka\n\nSpróbuj ponownie! 💜`,
+        flags: 64
+      });
+      return;
+    }
+
+    const opis = pelerynka.key === 'zestaw'
+      ? `${pelerynka.emoji} **Zestaw** — cena do ustalenia`
+      : `${pelerynka.emoji} **${pelerynka.nazwaDisplay}** — baza: \`${pelerynka.cena} zł\``;
+
+    await interaction.reply({
+      content:
+        `💜 **Krok 2 z 2 — Wybierz metodę płatności**\n\n` +
+        `${opis}\n\n` +
+        `Wybierz metodę płatności, a bot automatycznie wyliczy finalną cenę z prowizją:`,
+      components: [buildMetodyTicketuRow(pelerynka.key)],
+      flags: 64
+    });
+    return;
+  }
+
+  // ── SELECT: metoda płatności dla ticketu ──────────────────────────────────
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith('select_metoda_platnosci_')) {
+    const pelerynkaKey = interaction.customId.replace('select_metoda_platnosci_', '');
+    const metodaKey    = interaction.values[0];
+    const pelerynka    = { key: pelerynkaKey, ...PELERYNKI[pelerynkaKey] };
+    const metoda       = TICKET_METODY[metodaKey];
+
+    if (!pelerynka || !metoda) {
+      await interaction.reply({ content: '❌ Wystąpił błąd. Spróbuj ponownie.', flags: 64 });
+      return;
+    }
+
+    let cenaTekst, opisCena;
+    if (pelerynka.key === 'zestaw') {
+      if (metoda.prowizja > 0) {
+        cenaTekst = `Do ustalenia + ${metoda.prowizja}% prowizji`;
+        opisCena  = `💵 Cena: **Do ustalenia** *(+ ${metoda.prowizja}% prowizji ${metoda.nazwa})*`;
+      } else {
+        cenaTekst = `Do ustalenia`;
+        opisCena  = `💵 Cena: **Do ustalenia**`;
+      }
+    } else {
+      const cenaBaza = pelerynka.cena;
+      if (metoda.prowizja > 0) {
+        const cenaFinal = obliczCeneZProwizja(cenaBaza, metoda.prowizja);
+        cenaTekst = `${cenaBaza} zł + ${metoda.prowizja}% = ${cenaFinal} zł`;
+        opisCena  = `💵 Cena: \`${cenaBaza} zł\` + \`${metoda.prowizja}%\` prowizji = **${cenaFinal} zł**`;
+      } else {
+        cenaTekst = `${cenaBaza} zł`;
+        opisCena  = `💵 Cena: **${cenaBaza} zł** *(bez prowizji)*`;
+      }
+    }
 
     await interaction.deferReply({ flags: 64 });
 
     const guild  = interaction.guild;
-    const result = await createTicketChannel(guild, interaction.user, temat, opis, null);
+    const result = await createTicketChannel(guild, interaction.user, pelerynka.nazwaDisplay, cenaTekst, metodaKey);
 
     if (result.exists) {
-      await interaction.editReply({ content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ sprawę. 💜` });
+      await interaction.editReply({ content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ zakup. 💜` });
       return;
     }
 
-    await sendTicketWelcome(result.channel, interaction.user, temat, opis, null);
+    await sendTicketWelcome(result.channel, interaction.user, pelerynka.nazwaDisplay, cenaTekst, metodaKey);
     await interaction.editReply({
       content:
         `✅ **Ticket został otwarty!**\n\n` +
-        `📋 Temat: **${temat}**\n\n` +
+        `${pelerynka.emoji} Pelerynka: **${pelerynka.nazwaDisplay}**\n` +
+        `${opisCena}\n` +
+        `💳 Metoda płatności: **${metoda.emoji} ${metoda.nazwa}**\n\n` +
         `📩 Kanał: <#${result.channel.id}>\n` +
         `Obsługa wkrótce się z Tobą skontaktuje 💜`
     });
@@ -1606,8 +1890,8 @@ client.on('interactionCreate', async interaction => {
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId('pelerynka_kupiona')
-            .setLabel('Co kupił klient? (produkt/usługa)')
-            .setPlaceholder('np. Home Cape, Pakiet, itp.')
+            .setLabel('Jaką pelerynkę kupiła?')
+            .setPlaceholder('np. Home Cape')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
             .setMaxLength(50)
@@ -1663,13 +1947,13 @@ client.on('interactionCreate', async interaction => {
         `Masz na to **10 minut** — po tym czasie bot wyśle legit check automatycznie.`
       )
       .addFields(
-        { name: '🛒 Produkt',            value: pelerynkaKupiona,                   inline: true  },
+        { name: '🛒 Pelerynka',          value: pelerynkaKupiona,                   inline: true  },
         { name: '💵 Kwota',              value: `${kwotaWydana} PLN`,               inline: true  },
         { name: '💳 Metoda płatności',   value: metodaInfo,                         inline: true  },
         { name: '👤 Obsługa',            value: `<@${ticket.taken_by_user_id}>`,    inline: true  },
         { name: '📢 Kanał legit check',  value: `<#${LEGIT_CHECK_CHANNEL_ID}>`,     inline: false }
       )
-      .setFooter({ text: 'CatShop | Legit Check' })
+      .setFooter({ text: 'SS Shop | Legit Check' })
       .setTimestamp();
 
     const sentMessage = await interaction.channel.send({ content: `<@${ticket.user_id}>`, embeds: [legitCheckEmbed] });
@@ -1737,15 +2021,15 @@ client.on('interactionCreate', async interaction => {
     const embed = new EmbedBuilder()
       .setColor('#6a00ff')
       .setAuthor({
-        name: '🐱 CatShop × Weryfikacja',
-        iconURL: CATSHOP_LOGO_URL
+        name: '💜 SS | Shop 💜 × Weryfikacja',
+        iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
       })
-      .setThumbnail(CATSHOP_LOGO_URL)
+      .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
       .setDescription(
-        '>>> Aby uzyskać pełny dostęp do serwera **CatShop**, musisz przejść proces weryfikacji.\n' +
+        '>>> Aby uzyskać pełny dostęp do serwera **SS Shop**, musisz przejść proces weryfikacji.\n' +
         'Kliknij przycisk poniżej, aby połączyć swoje konto i uzyskać dostęp do kanałów!'
       )
-      .setImage(CATSHOP_LOGO_URL);
+      .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
     await interaction.channel.send({
       embeds: [embed],
       components: [new ActionRowBuilder().addComponents(
@@ -1810,7 +2094,7 @@ client.on('interactionCreate', async interaction => {
               try {
                 await new Promise(r => setTimeout(r, 1500));
                 const member = await targetGuild.members.fetch(row.user_id).catch(() => null);
-                if (member) { await member.roles.add(TRANSFER_ROLE_ID); await sendWelcomeMessage(member, null, 0); }
+                if (member) { await member.roles.add(TRANSFER_ROLE_ID); await sendWelcomeMessage(member); }
               } catch (err) { console.error(`❌ Błąd rangi/powitania dla ${row.user_id}:`, err.message); }
             });
           }
@@ -1851,33 +2135,6 @@ client.on('interactionCreate', async interaction => {
 client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   setTimeout(() => checkAndUpdateAutoRole(member), 3000);
-
-  // Wykryj kto zaprosił
-  try {
-    const guild = member.guild;
-    const newInvites = await guild.invites.fetch();
-    const oldInvites = inviteCache;
-
-    let inviterUser = null;
-    let inviterNewCount = 0;
-
-    for (const [code, invite] of newInvites) {
-      const oldUses = oldInvites.get(code) || 0;
-      if (invite.uses > oldUses && invite.inviter) {
-        inviterUser = invite.inviter;
-        inviterNewCount = await addInviteCount(invite.inviter.id, invite.uses - oldUses);
-        break;
-      }
-    }
-
-    // Zaktualizuj cache
-    newInvites.forEach((invite, code) => inviteCache.set(code, invite.uses));
-
-    await sendWelcomeMessage(member, inviterUser, inviterNewCount);
-  } catch (err) {
-    console.error('❌ Błąd guildMemberAdd (invite detect):', err.message);
-    await sendWelcomeMessage(member, null, 0).catch(() => {});
-  }
 });
 
 // ─── PRESENCE UPDATE ──────────────────────────────────────────────────────────
@@ -1911,11 +2168,25 @@ if (process.argv.includes('--setup')) {
   const commands = [
     new SlashCommandBuilder()
       .setName('drop')
-      .setDescription('🎁 Wylosuj nagrodę w CatShop!')
+      .setDescription('🎁 Wylosuj nagrodę w SSshop!')
       .toJSON(),
     new SlashCommandBuilder()
-      .setName('zaproszeniamoje')
-      .setDescription('📨 Sprawdź ile masz zaproszeń na serwerze')
+      .setName('tokengive')
+      .setDescription('🎟️ Nadaj żetony użytkownikowi (tylko właściciel)')
+      .addUserOption(opt =>
+        opt.setName('uzytkownik').setDescription('Użytkownik, któremu nadajesz żetony').setRequired(true)
+      )
+      .addIntegerOption(opt =>
+        opt.setName('ilosc').setDescription('Ilość żetonów do nadania').setRequired(true).setMinValue(1)
+      )
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('dice')
+      .setDescription('🎲 Zagraj w kości! Wybierz stawkę w tokenach i numerek.')
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('double')
+      .setDescription('🎰 Podwój swoją wygraną lub strać wszystko!')
       .toJSON(),
     new SlashCommandBuilder()
       .setName('massrole')
@@ -1932,30 +2203,6 @@ if (process.argv.includes('--setup')) {
       .addStringOption(opt => opt.setName('user_id').setDescription('ID usera (tylko single)').setRequired(false))
       .toJSON(),
     new SlashCommandBuilder()
-      .setName('setup-verify')
-      .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
-      .toJSON(),
-    new SlashCommandBuilder()
-      .setName('transfer')
-      .setDescription('Przenosi użytkowników na podany serwer')
-      .addStringOption(opt => opt.setName('guild_id').setDescription('ID serwera docelowego').setRequired(true))
-      .addStringOption(opt =>
-        opt.setName('tryb').setDescription('all = wszyscy, random = losowi, id = konkretna osoba').setRequired(true)
-          .addChoices(
-            { name: 'Wszyscy',                 value: 'all'    },
-            { name: 'Losowi',                  value: 'random' },
-            { name: 'Konkretna osoba (po ID)', value: 'id'     }
-          )
-      )
-      .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ile losowych osób (tryb random)').setRequired(false))
-      .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tryb id)').setRequired(false))
-      .toJSON()
-  ];
-
-  rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
-    .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
-    .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
-}
       .setName('setup-verify')
       .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
       .toJSON(),
@@ -2036,7 +2283,7 @@ app.get('/callback', async (req, res) => {
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (member) {
       await member.roles.add(ROLE_ID);
-      await sendWelcomeMessage(member, null, 0);
+      await sendWelcomeMessage(member);
     }
 
     const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
@@ -2051,7 +2298,7 @@ app.get('/callback', async (req, res) => {
             { name: '🆔 ID',         value: `\`${discordUserId}\``,            inline: true },
             { name: '🕐 Czas',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
           )
-          .setFooter({ text: 'CatShop | System weryfikacji' })
+          .setFooter({ text: 'SS Shop | System weryfikacji' })
           .setTimestamp()]
       });
     }
