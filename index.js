@@ -55,7 +55,7 @@ const PROPOZYCJE_CHANNEL_ID = '1505530602953244864';
 const PROPOZYCJE_MSG_KEY    = 'propozycje_message_id';
 
 const STAFF_BASE_ROLE_ID     = '1495432509263974438';
-const SS_SHOP_EMOJI_URL      = 'https://cdn.discordapp.com/emojis/1499432018252140694.webp?size=96';
+const SS_SHOP_EMOJI_URL      = 'https://i.imgur.com/Y65cjjd.png';
 const RAVEN_LOGO_URL = SS_SHOP_EMOJI_URL;
 const CAT_GIF_URL = 'https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif';
 
@@ -575,9 +575,9 @@ function buildKalkulatorEmbed() {
     .setColor(0x6a00ff)
     .setAuthor({
       name: '🐈 Cat Shop 🐈 × Kalkulator Prowizji',
-      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+      iconURL: 'https://i.imgur.com/Y65cjjd.png'
     })
-    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setThumbnail('https://i.imgur.com/Y65cjjd.png')
     .setTitle('🐈 Kalkulator Prowizji — Cat Shop 🐈')
     .setDescription(
       '>>> Jeżeli chcesz obliczyć **prowizję swojej wymiany**, kliknij odpowiedni przycisk poniżej.\n' +
@@ -625,9 +625,9 @@ function buildCennikEmbed() {
     .setColor(0x6a00ff)
     .setAuthor({
       name: '🐈 Cat Shop 🐈 × Cennik Pelerynek',
-      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+      iconURL: 'https://i.imgur.com/Y65cjjd.png'
     })
-    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setThumbnail('https://i.imgur.com/Y65cjjd.png')
     .setTitle('🐈 Cennik Pelerynek — Cat Shop 🐈')
     .setDescription(
       '>>> Poniżej znajdziesz aktualny cennik pelerynek dostępnych w **Cat Shop**.\n\n' +
@@ -706,9 +706,9 @@ function buildMetodyEmbed() {
     .setColor(0x6a00ff)
     .setAuthor({
       name: '🐈 Cat Shop 🐈 × Metody Płatności',
-      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+      iconURL: 'https://i.imgur.com/Y65cjjd.png'
     })
-    .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+    .setThumbnail('https://i.imgur.com/Y65cjjd.png')
     .setTitle('🐈 Metody Płatności — Cat Shop 🐈')
     .setDescription(
       '>>> Poniżej znajdziesz wszystkie dostępne metody płatności w **Cat Shop** wraz z prowizjami.\n\n' +
@@ -871,7 +871,7 @@ async function sendTicketWelcome(ticketChannel, user, pelerynkaNazwa, cenaTekst,
     .setColor(0x6a00ff)
     .setAuthor({
       name: '🐈 Cat Shop 🐈 × Nowy Ticket',
-      iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+      iconURL: 'https://i.imgur.com/Y65cjjd.png'
     })
     .setTitle("🛍️ Twój ticket został otwarty")
     .setDescription(
@@ -2022,14 +2022,14 @@ client.on('interactionCreate', async interaction => {
       .setColor('#6a00ff')
       .setAuthor({
         name: '🐈 Cat | Shop 🐈 × Weryfikacja',
-        iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
+        iconURL: 'https://i.imgur.com/Y65cjjd.png'
       })
-      .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
+      .setThumbnail('https://i.imgur.com/Y65cjjd.png')
       .setDescription(
         '>>> Aby uzyskać pełny dostęp do serwera **Cat Shop**, musisz przejść proces weryfikacji.\n' +
         'Kliknij przycisk poniżej, aby połączyć swoje konto i uzyskać dostęp do kanałów!'
       )
-      .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
+      .setImage('https://i.imgur.com/Y65cjjd.png');
     await interaction.channel.send({
       embeds: [embed],
       components: [new ActionRowBuilder().addComponents(
