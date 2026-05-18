@@ -856,7 +856,7 @@ async function handleTicketInteraction(interaction) {
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId('transakcja_sukces')
-            .setLabel('Czy transakcja przebiegła pomyślnie? (Tak/Nie)')
+            .setLabel('Transakcja pomyślna? (Tak/Nie)')
             .setStyle(TextInputStyle.Short)
             .setPlaceholder('Tak / Nie')
             .setRequired(true)
