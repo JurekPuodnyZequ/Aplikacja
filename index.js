@@ -1798,7 +1798,8 @@ new SlashCommandBuilder()
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
-  
+}
+
 // ─── SERWER HTTP ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send('Bot działa!'));
 
