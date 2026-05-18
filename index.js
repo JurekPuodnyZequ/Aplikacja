@@ -647,12 +647,12 @@ function buildTicketSetupEmbed() {
     .setTitle('🎫 Otwórz ticket')
     .setDescription(
       '>>> Wybierz kategorię swojego zgłoszenia klikając odpowiedni przycisk poniżej.\n\n' +
-      '🏷️ **Premki** — zapytanie o premki\n' +
-      '📡 **Radar** — zapytanie o radar\n' +
-      '💸 **Zakup pieniędzy** — chcesz kupić dolary serwerowe\n' +
-      '💰 **Skup** — chcesz sprzedać dolary serwerowe'
+      '🏷️ **Premki** — zakup lub pomoc z premkami\n' +
+      '📡 **Radar** — zakup lub pomoc z radarem\n' +
+      '💸 **Zakup pieniędzy** — Zakup pieniędzy\n' +
+      '💰 **Skup** — Sprzedaz dolarów serwerowych'
     )
-    .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+    .setFooter({ text: 'CatHub | Tickety', iconURL: CATHUB_LOGO_URL })
     .setTimestamp();
 }
 
