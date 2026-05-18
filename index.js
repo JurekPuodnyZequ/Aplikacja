@@ -1159,38 +1159,33 @@ client.once('ready', async () => {
   const guild = client.guilds.cache.get(GUILD_ID);
   if (guild) await updateMemberCount(guild);
 
-  // ─── RESET LEGIT CHECK COUNT DO 0 ────────────────────────────────────────
+// ─── RESET LEGIT CHECK COUNT DO 0 — ### USUŃ PO DEPLOY ──────────────────
   if (guild) {
-    await setConfig(LEGIT_CHECK_COUNT_KEY, '0');
-    await updateLegitCheckCount(guild, 0);
-    console.log('✅ Legit check radar zresetowany do 0');
-  }
-
-  // ─── RESET LEGIT CHECK 2 COUNT DO 24 ─────────────────────────────────────
-  if (guild) {
-    await setConfig(LEGIT_CHECK2_COUNT_KEY, '24');
-    await updateLegitCheck2Count(guild, 24);
-    console.log('✅ Legit check 2 zresetowany do 24');
-  }
-
-  setInterval(async () => {
-    try {
-      const guild = client.guilds.cache.get(GUILD_ID);
-      if (!guild) return;
-      const members = await guild.members.fetch({ withPresences: true }).catch(() => null);
-      if (!members) return;
-      for (const [, member] of members) {
-        if (member.user.bot) continue;
-        const presence = member.presence;
-        const isOffline = !presence || presence.status === 'offline' || presence.status === 'invisible';
-        if (isOffline) continue;
-        await checkAndUpdateAutoRole(member);
-      }
-    } catch (err) {
-      console.error('❌ Błąd interwału auto-roli:', err.message);
+    const alreadyReset1 = await getConfig('legit_check_reset_done');
+    if (!alreadyReset1) {
+      await setConfig(LEGIT_CHECK_COUNT_KEY, '0');
+      await updateLegitCheckCount(guild, 0);
+      await setConfig('legit_check_reset_done', '1');
+      console.log('✅ Legit check radar zresetowany do 0 (jednorazowo)');
+    } else {
+      const raw = await getConfig(LEGIT_CHECK_COUNT_KEY);
+      await updateLegitCheckCount(guild, raw ? parseInt(raw) : 0);
     }
-  }, 30 * 1000);
-});
+  }
+
+  // ─── RESET LEGIT CHECK 2 COUNT DO 24 — ### USUŃ PO DEPLOY ───────────────
+  if (guild) {
+    const alreadyReset2 = await getConfig('legit_check2_reset_done');
+    if (!alreadyReset2) {
+      await setConfig(LEGIT_CHECK2_COUNT_KEY, '24');
+      await updateLegitCheck2Count(guild, 24);
+      await setConfig('legit_check2_reset_done', '1');
+      console.log('✅ Legit check 2 zresetowany do 24 (jednorazowo)');
+    } else {
+      const raw2 = await getConfig(LEGIT_CHECK2_COUNT_KEY);
+      await updateLegitCheck2Count(guild, raw2 ? parseInt(raw2) : 24);
+    }
+  }
 
 // ─── GUILD MEMBER UPDATE ──────────────────────────────────────────────────────
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
