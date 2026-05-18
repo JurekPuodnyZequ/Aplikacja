@@ -889,7 +889,6 @@ async function handleTicketInteraction(interaction) {
     // Owner zamknął — prosto zamknij bez modala
     await interaction.deferReply({ flags: 64 });
     await interaction.editReply({ content: '🔒 Ticket zostanie zamknięty za 5 sekund...' });
-    setTimeout(() => channel.delete().catch(() => {}), 5000);
     return true;
   }
 
@@ -941,8 +940,53 @@ async function handleTicketInteraction(interaction) {
 
     await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
 
-    // Usuń kanał po 15 sekundach
-    setTimeout(() => channel.delete().catch(() => {}), 15000);
+    // Usuń kanał po 5 sekundach
+    setTimeout(() => channel.delete().catch(() => {}), 5000);
+
+// ─── AUTO +REP po 10 minutach ─────────────────────────────────────────────
+const repChannelIdFinal = TICKET_REP_CHANNEL[kategoria] || TICKET_REP_CHANNEL['zakup_pieniedzy'];
+const ownerId_final = ownerId;
+const repTextFinal = repText;
+
+setTimeout(async () => {
+  try {
+    const repCh = await client.channels.fetch(repChannelIdFinal).catch(() => null);
+    if (!repCh) return;
+
+    // Sprawdź czy owner już napisał +rep w ostatnich 10 minutach
+    const since = Date.now() - 10 * 60 * 1000;
+    const messages = await repCh.messages.fetch({ limit: 50 }).catch(() => null);
+    if (messages) {
+      const alreadyRepped = messages.some(m =>
+        m.author.id === ownerId_final &&
+        m.content.includes('+rep') &&
+        m.createdTimestamp >= since
+      );
+      if (alreadyRepped) return; // napisał sam, nie rób nic
+    }
+
+    // Pobierz dane usera do webhooka
+    const ownerMember = await interaction.guild.members.fetch(ownerId_final).catch(() => null);
+    if (!ownerMember) return;
+
+    const avatarURL = ownerMember.user.displayAvatarURL({ extension: 'png', size: 256, forceStatic: true });
+    const displayName = ownerMember.displayName;
+
+    // Stwórz webhook
+    const webhook = await repCh.createWebhook({
+      name: displayName,
+      avatar: avatarURL,
+      reason: 'Auto +rep za użytkownika'
+    }).catch(() => null);
+    if (!webhook) return;
+
+    await webhook.send({ content: repTextFinal });
+    await webhook.delete().catch(() => {});
+
+  } catch (err) {
+    console.error('❌ Błąd auto +rep:', err.message);
+  }
+}, 10 * 60 * 1000); // 10 minut
     return true;
   }
 
