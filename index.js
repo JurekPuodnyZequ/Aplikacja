@@ -249,7 +249,7 @@ async function sendWelcomeMessage(member, inviter = null, inviterCount = 0) {
 }
 
 // ─── KONFIGURACJA ─────────────────────────────────────────────────────────────
-const PRZELICZNIK = 7500;
+const PRZELICZNIK = 7300;
 
 // ─── BAZA DANYCH ──────────────────────────────────────────────────────────────
 const pool = new Pool({
