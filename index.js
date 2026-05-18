@@ -394,15 +394,15 @@ async function refreshAccessToken(userId) {
 const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
   blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 10, emoji: '<:blik:1505930944777818172>' },
-  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1505931989994176512>' },
-  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1505931989994176512>' },
-  usdt:         { nazwa: 'USDT',                    prowizja: 0,  emoji: '<:usdt:1505931989994176512>' },
-  usdc:         { nazwa: 'USDC',                    prowizja: 0,  emoji: '<:usdc:1505931989994176512>' },
-  eth:          { nazwa: 'ETH (Ethereum)',           prowizja: 0,  emoji: '<:eth:1505931989994176512>' },
-  paypal:       { nazwa: 'PayPal',                  prowizja: 13, emoji: '<:paypal:1505931989994176512>' },
-  psc_paragon:  { nazwa: 'PSC z paragonem',         prowizja: 13, emoji: '<:psc:1505931989994176512>' },
-  psc_bez:      { nazwa: 'PSC bez paragonu',        prowizja: 20, emoji: '<:psc:1505931989994176512>' },
-  mypsc:        { nazwa: 'MyPSC (tylko)',            prowizja: 25, emoji: '<:mypsc:1505931989994176512>' },
+  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1218564381135208568>' },
+  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1218564881117085786>' },
+  usdt:         { nazwa: 'USDT',                    prowizja: 0,  emoji: '<:USDT:1505930988507762748>' },
+  usdc:         { nazwa: 'USDC',                    prowizja: 0,  emoji: '<:USDC:1505930834429874327>' },
+  eth:          { nazwa: 'ETH (Ethereum)',           prowizja: 0,  emoji: '<:ether:1505930906957905972>' },
+  paypal:       { nazwa: 'PayPal',                  prowizja: 13, emoji: '<a:pp:713830935908581408>' },
+  psc_paragon:  { nazwa: 'PSC z paragonem',         prowizja: 13, emoji: '<:PSC:1505930725109792999>' },
+  psc_bez:      { nazwa: 'PSC bez paragonu',        prowizja: 20, emoji: '<:PSC:1505930725109792999>' },
+  mypsc:        { nazwa: 'MyPSC (tylko)',            prowizja: 25, emoji: '<:MYPSC:1505930776884281546>' },
 };
 
 function parseZloty(input) {
@@ -514,15 +514,15 @@ function buildMetodyEmbed() {
       value:
         `<:blik:1505930944777818172> **Kod BLIK** — \`10%\` prowizji\n` +
         `📱 **BLIK na numer telefonu** — \`0%\` prowizji\n` +
-        `<:psc:1498356914013339705> **PSC z paragonem** — \`13%\` prowizji\n` +
-        `<:psc:1498356914013339705> **PSC bez paragonu** — \`20%\` prowizji\n` +
-        `<:mypsc:1498356473153978450> **MyPSC** — \`25%\` prowizji\n` +
-        `<:ltc:1498356372339818747> **LTC (Litecoin)** — \`0%\` prowizji\n` +
-        `<:btc:1498356295408029807> **BTC (Bitcoin)** — \`0%\` prowizji\n` +
-        `<:usdt:1498356339053822102> **USDT** — \`0%\` prowizji\n` +
-        `<:usdc:1498356270498054264> **USDC** — \`0%\` prowizji\n` +
-        `<:eth:1498008998299959397> **ETH (Ethereum)** — \`0%\` prowizji\n` +
-        `<:paypal:1498357795433746653> **PayPal** — \`13%\` prowizji\n`,
+        `<:PSC:1505930725109792999> **PSC z paragonem** — \`13%\` prowizji\n` +
+        `<:PSC:1505930725109792999> **PSC bez paragonu** — \`20%\` prowizji\n` +
+        `<:MYPSC:1505930776884281546> **MyPSC** — \`25%\` prowizji\n` +
+        `<:ltc:1218564881117085786> **LTC (Litecoin)** — \`0%\` prowizji\n` +
+        `<:btc:1218564381135208568> **BTC (Bitcoin)** — \`0%\` prowizji\n` +
+        `<:USDT:1505930988507762748> **USDT** — \`0%\` prowizji\n` +
+        `<:USDC:1505930834429874327> **USDC** — \`0%\` prowizji\n` +
+        `<:ether:1505930906957905972> **ETH (Ethereum)** — \`0%\` prowizji\n` +
+        `<a:pp:713830935908581408> **PayPal** — \`13%\` prowizji\n`,
       inline: false
     })
     .setFooter({ text: 'Cat Shop | Metody Płatności 🐈' })
