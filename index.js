@@ -48,6 +48,7 @@ const PROPOZYCJE_CHANNEL_ID  = '1505530602953244864';
 const PROPOZYCJE_MSG_KEY     = 'propozycje_message_id';
 
 const MEMBER_COUNT_CHANNEL_ID  = '1505521873134424219';
+const INVITES_CMD_CHANNEL_ID   = '1505521873621094421';
 const LEGIT_CHECK_CHANNEL_ID   = '1505532967500644412';
 const LEGIT_CHECK_COUNT_KEY    = 'legit_check_count';
 const LEGIT_CHECK2_CHANNEL_ID  = '1505521873402855452';
@@ -276,6 +277,12 @@ async function initDB() {
       nagrody    TEXT DEFAULT '[]'
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS invites (
+      user_id  TEXT PRIMARY KEY,
+      count    INTEGER DEFAULT 0
+    )
+  `);
   console.log('✅ Baza danych gotowa!');
 }
 
@@ -319,6 +326,21 @@ async function saveDropData(userId, lastDrop, nagrody) {
     VALUES ($1, $2, $3)
     ON CONFLICT (user_id) DO UPDATE SET last_drop = $2, nagrody = $3
   `, [userId, lastDrop, JSON.stringify(nagrody)]);
+}
+
+// ─── INVITE HELPERS ──────────────────────────────────────────────────────────
+async function getInviteCount(userId) {
+  const res = await pool.query('SELECT count FROM invites WHERE user_id = $1', [userId]);
+  return res.rows.length > 0 ? res.rows[0].count : 0;
+}
+
+async function incrementInviteCount(userId) {
+  await pool.query(`
+    INSERT INTO invites (user_id, count) VALUES ($1, 1)
+    ON CONFLICT (user_id) DO UPDATE SET count = invites.count + 1
+  `, [userId]);
+  const res = await pool.query('SELECT count FROM invites WHERE user_id = $1', [userId]);
+  return res.rows[0].count;
 }
 
 // ─── TOKEN REFRESH ────────────────────────────────────────────────────────────
@@ -579,6 +601,18 @@ client.once('ready', async () => {
   await sendOrUpdateKalkulator();
   await sendOrUpdateMetody();
   await sendOrUpdatePropozycje();
+
+  // cache invites on startup
+  try {
+    const startGuild = client.guilds.cache.get(GUILD_ID);
+    if (startGuild) {
+      const fetched = await startGuild.invites.fetch();
+      client.inviteCache = new Map(fetched.map(inv => [inv.code, inv.uses]));
+    }
+  } catch (err) {
+    console.error('❌ Błąd cache zaproszeń:', err.message);
+    client.inviteCache = new Map();
+  }
 
   const guild = client.guilds.cache.get(GUILD_ID);
   if (guild) await updateMemberCount(guild);
@@ -1104,6 +1138,27 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
+
+  // ── ZAPROSZENIA MOJE ─────────────────────────────────────────────────────
+  if (interaction.isChatInputCommand() && interaction.commandName === 'zaproszeniamoje') {
+    if (interaction.channel.id !== INVITES_CMD_CHANNEL_ID) {
+      return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${INVITES_CMD_CHANNEL_ID}>!`, flags: 64 });
+    }
+    const count = await getInviteCount(interaction.user.id);
+    const embed = new EmbedBuilder()
+      .setColor(0x6a00ff)
+      .setAuthor({ name: 'Cat Shop × Zaproszenia', iconURL: SS_SHOP_EMOJI_URL })
+      .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
+      .setTitle('🎟️ Twoje zaproszenia')
+      .addFields(
+        { name: '👤 Użytkownik', value: `<@${interaction.user.id}>`, inline: true },
+        { name: '🎟️ Zaproszenia', value: `**${count}**`, inline: true }
+      )
+      .setFooter({ text: 'Cat Shop | System zaproszeń', iconURL: SS_SHOP_EMOJI_URL })
+      .setTimestamp();
+    return interaction.reply({ embeds: [embed], flags: 64 });
+  }
+
 });
 
 // ─── NOWY CZŁONEK ─────────────────────────────────────────────────────────────
@@ -1111,7 +1166,32 @@ client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   setTimeout(() => checkAndUpdateAutoRole(member), 3000);
   await updateMemberCount(member.guild);
-  await sendWelcomeMessage(member);
+
+  // ── detect who invited ──
+  let inviter = null;
+  let inviterCount = 0;
+  try {
+    const newInvites = await member.guild.invites.fetch();
+    const oldCache   = client.inviteCache || new Map();
+
+    for (const [code, invite] of newInvites) {
+      const oldUses = oldCache.get(code) || 0;
+      if (invite.uses > oldUses && invite.inviter) {
+        inviter = invite.inviter;
+        break;
+      }
+    }
+
+    client.inviteCache = new Map(newInvites.map(inv => [inv.code, inv.uses]));
+
+    if (inviter) {
+      inviterCount = await incrementInviteCount(inviter.id);
+    }
+  } catch (err) {
+    console.error('❌ Błąd invite detect:', err.message);
+  }
+
+  await sendWelcomeMessage(member, inviter, inviterCount);
 });
 
 // ─── NOWY MEMBER WYSZEDŁ ──────────────────────────────────────────────────────
@@ -1180,6 +1260,10 @@ if (process.argv.includes('--setup')) {
       )
       .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ile losowych osób (tryb random)').setRequired(false))
       .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tryb id)').setRequired(false))
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('zaproszeniamoje')
+      .setDescription('🎟️ Sprawdź ile masz zaproszeń')
       .toJSON()
   ];
 
