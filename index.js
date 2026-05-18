@@ -21,7 +21,8 @@ const {
   TextInputBuilder,
   TextInputStyle,
   PermissionsBitField,
-  ChannelType
+  ChannelType,
+  AttachmentBuilder,
 } = require('discord.js');
 
 const app = express();
@@ -36,7 +37,6 @@ const {
   PORT = 3000
 } = process.env;
 
-// ─── KANAŁY LOGÓW — WSZYSTKO IDZIE TU ────────────────────────────────────────
 const LOG_CHANNEL_ID         = '1505788742445563946';
 const WELCOME_CHANNEL_ID     = '1505521873134424221';
 const KALKULATOR_CHANNEL_ID  = '1505539734007578705';
@@ -50,24 +50,21 @@ const PROPOZYCJE_MSG_KEY     = 'propozycje_message_id';
 
 const MEMBER_COUNT_CHANNEL_ID  = '1505521873134424219';
 const INVITES_CMD_CHANNEL_ID   = '1505521873621094421';
-const LEGIT_CHECK_CHANNEL_ID   = '1505532967500644412';  // ╵✅・ʀᴀᴅᴀʀ-ʟᴇɢɪᴛᴄʜᴇᴄᴋ — reset do 0
+const LEGIT_CHECK_CHANNEL_ID   = '1505532967500644412';
 const LEGIT_CHECK_COUNT_KEY    = 'legit_check_count';
-const LEGIT_CHECK2_CHANNEL_ID  = '1505521873402855452';  // ╵🔎・ʟᴇɢɪᴛ-ᴄʜᴇᴄᴋ — start od 24
+const LEGIT_CHECK2_CHANNEL_ID  = '1505521873402855452';
 const LEGIT_CHECK2_COUNT_KEY   = 'legit_check2_count';
 
 const SS_SHOP_EMOJI_URL      = 'https://i.imgur.com/Y65cjjd.png';
 const RAVEN_LOGO_URL         = SS_SHOP_EMOJI_URL;
 
-// ─── DROP SYSTEM ───────────────────────────────────────────────────────────────
 const DROP_CHANNEL_ID    = '1505540703604834335';
 const DROP_REQUIRED_ROLE = '1505540086060548116';
 const DROP_COOLDOWN_MS   = 2 * 60 * 60 * 1000;
 
-// ─── AUTO-ROLA ZA STATUS ──────────────────────────────────────────────────────
 const AUTO_ROLE_ID         = '1505540086060548116';
 const REQUIRED_STATUS_LINK = '.gg/y5Eu6YgDRY';
 
-// ─── NAGRODY DROP ─────────────────────────────────────────────────────────────
 const DROP_NAGRODY = [
   { nazwa: '-2.5% zniżki w CatShop',    emoji: '🏷️', szansa: 3.68 },
   { nazwa: '-5% zniżki w CatShop',      emoji: '🏷️', szansa: 1.472 },
@@ -90,7 +87,6 @@ function losujNagrode() {
   return null;
 }
 
-// ─── STATUS CHECK ─────────────────────────────────────────────────────────────
 function memberHasStatusLink(member) {
   try {
     const presence = member.presence;
@@ -113,7 +109,6 @@ function memberHasStatusLink(member) {
   }
 }
 
-// ─── AUTO ROLE ────────────────────────────────────────────────────────────────
 async function checkAndUpdateAutoRole(member) {
   try {
     if (!member || member.user.bot) return;
@@ -137,7 +132,6 @@ async function checkAndUpdateAutoRole(member) {
   }
 }
 
-// ─── LICZNIK CZŁONKÓW ─────────────────────────────────────────────────────────
 async function updateMemberCount(guild) {
   try {
     const channel = await guild.channels.fetch(MEMBER_COUNT_CHANNEL_ID).catch(() => null);
@@ -149,7 +143,6 @@ async function updateMemberCount(guild) {
   }
 }
 
-// ─── LEGIT CHECK LICZNIK ─────────────────────────────────────────────────────
 async function updateLegitCheckCount(guild, count) {
   try {
     const channel = await guild.channels.fetch(LEGIT_CHECK_CHANNEL_ID).catch(() => null);
@@ -160,7 +153,6 @@ async function updateLegitCheckCount(guild, count) {
   }
 }
 
-// ─── LEGIT CHECK 2 LICZNIK ───────────────────────────────────────────────────
 async function updateLegitCheck2Count(guild, count) {
   try {
     const channel = await guild.channels.fetch(LEGIT_CHECK2_CHANNEL_ID).catch(() => null);
@@ -171,7 +163,6 @@ async function updateLegitCheck2Count(guild, count) {
   }
 }
 
-// ─── DROP LOG ─────────────────────────────────────────────────────────────────
 async function logDropResult(interaction, nagroda) {
   try {
     const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
@@ -195,7 +186,6 @@ async function logDropResult(interaction, nagroda) {
   }
 }
 
-// ─── GIFY POWITALNE ───────────────────────────────────────────────────────────
 const WELCOME_GIFS = [
   { url: 'https://media.giphy.com/media/yWku98eNsMSZOEEWnC/giphy.gif', weight: 80   },
   { url: 'https://media.giphy.com/media/EIXWGdjKzTFwEXSw66/giphy.gif', weight: 5.71 },
@@ -219,40 +209,8 @@ function getRandomGif() {
   return WELCOME_GIFS[0].url;
 }
 
-async function sendWelcomeMessage(member, inviter = null, inviterCount = 0) {
-  try {
-    const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
-    if (!welcomeChannel) return;
-    const randomGif = getRandomGif();
-
-    let desc =
-      `🐈 Cieszymy się, że dołączyłeś do **Cat Shop**! 🐈\n` +
-      `🐈 Zweryfikuj się i sprawdź naszą ofertę! 🐈\n\n`;
-
-    if (inviter) {
-      desc += `👤 **Zaproszony przez:** <@${inviter.id}>\n`;
-      desc += `🎟️ **Zaproszenia <@${inviter.id}>:** **${inviterCount}**`;
-    } else {
-      desc += `👤 **Zaproszony przez:** nieznany`;
-    }
-
-    const welcomeEmbed = new EmbedBuilder()
-      .setColor(0x6a00ff)
-      .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
-      .setDescription(desc)
-      .setThumbnail(randomGif)
-      .setFooter({ text: 'Cat Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
-      .setTimestamp();
-    await welcomeChannel.send({ content: `<@${member.user.id}>`, embeds: [welcomeEmbed] });
-  } catch (err) {
-    console.error('❌ Błąd sendWelcomeMessage:', err.message);
-  }
-}
-
-// ─── KONFIGURACJA ─────────────────────────────────────────────────────────────
 const PRZELICZNIK = 7300;
 
-// ─── BAZA DANYCH ──────────────────────────────────────────────────────────────
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres:ooqqGeeYDMypYAkQVxqJTNBstkLreIzr@postgres.railway.internal:5432/railway',
   ssl: false,
@@ -339,7 +297,6 @@ async function saveDropData(userId, lastDrop, nagrody) {
   `, [userId, lastDrop, JSON.stringify(nagrody)]);
 }
 
-// ─── INVITE HELPERS ──────────────────────────────────────────────────────────
 async function getInviteCount(userId) {
   const res = await pool.query('SELECT count FROM invites WHERE user_id = $1', [userId]);
   return res.rows.length > 0 ? res.rows[0].count : 0;
@@ -354,7 +311,6 @@ async function incrementInviteCount(userId) {
   return res.rows[0].count;
 }
 
-// ─── TOKEN REFRESH ────────────────────────────────────────────────────────────
 async function refreshAccessToken(userId) {
   const result = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
   if (result.rows.length === 0) return null;
@@ -502,7 +458,6 @@ async function sendOrUpdateKalkulator() {
   }
 }
 
-// ─── METODY PŁATNOŚCI ─────────────────────────────────────────────────────────
 function buildMetodyEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
@@ -552,7 +507,6 @@ async function sendOrUpdateMetody() {
   }
 }
 
-// ─── PROPOZYCJE ───────────────────────────────────────────────────────────────
 function buildPropozycjeMainEmbed() {
   return new EmbedBuilder()
     .setColor(0xFFFFFF)
@@ -599,14 +553,13 @@ async function sendOrUpdatePropozycje() {
 // ─── TICKET SYSTEM ───────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
-const TICKET_CATEGORY_ID   = '1505521873621094422';
-const TICKET_LOG_CHANNEL   = LOG_CHANNEL_ID;
+const TICKET_CATEGORY_ID = '1505521873621094422';
 
 const TICKET_PINGS = {
-  premki:           ['<@965929399557976105>'],
-  radar:            ['<@1215343846003576872>'],
-  zakup_pieniedzy:  ['<@&1505525726005428425>', '<@&1505525879928000582>', '<@&1505525907350229166>', '<@&1505525920922865765>', '<@&1505525934630109205>'],
-  skup:             ['<@&1505525726005428425>', '<@&1505525879928000582>', '<@&1505525907350229166>', '<@&1505525920922865765>', '<@&1505525934630109205>'],
+  premki:          ['<@965929399557976105>'],
+  radar:           ['<@1215343846003576872>'],
+  zakup_pieniedzy: ['<@&1505525726005428425>', '<@&1505525879928000582>', '<@&1505525907350229166>', '<@&1505525920922865765>', '<@&1505525934630109205>'],
+  skup:            ['<@&1505525726005428425>', '<@&1505525879928000582>', '<@&1505525907350229166>', '<@&1505525920922865765>', '<@&1505525934630109205>'],
 };
 
 const TICKET_REP_CHANNEL = {
@@ -633,8 +586,6 @@ const SELLER_ROLE_IDS = [
 
 const CATHUB_LOGO_URL = 'https://i.imgur.com/Y65cjjd.png';
 
-// ─── TICKET TRANSCRIPT ────────────────────────────────────────────────────────
-// Zbiera ostatnie 100 wiadomości z kanału ticketu i wysyła jako plik .txt do logu
 async function sendTicketTranscript(channel, guild, closedBy, ownerId, kategoria, kwotaZl, kwotaDolary, sukces) {
   try {
     const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
@@ -663,7 +614,6 @@ async function sendTicketTranscript(channel, guild, closedBy, ownerId, kategoria
       `==========================\n\n` +
       lines.join('\n');
 
-    const { AttachmentBuilder } = require('discord.js');
     const buffer = Buffer.from(transcriptText, 'utf-8');
     const attachment = new AttachmentBuilder(buffer, { name: `transcript-${channel.name}-${Date.now()}.txt` });
 
@@ -689,7 +639,6 @@ async function sendTicketTranscript(channel, guild, closedBy, ownerId, kategoria
   }
 }
 
-// ─── HELPERS TICKET ───────────────────────────────────────────────────────────
 function buildTicketSetupEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
@@ -741,32 +690,118 @@ function buildTicketChannelEmbed(member, kategoria, metodaPlatnosci, kwotaZakupu
 }
 
 function buildTicketActionComponents() {
-  return [new ActionRowBuilder
-  // ─── LOG: ticket otwarty ──────────────────────────────────────────────────
-  const logCh = guild.channels.cache.get(LOG_CHANNEL_ID);
-  if (logCh) {
-    await logCh.send({
-      embeds: [new EmbedBuilder()
-        .setColor(0x6a00ff)
-        .setAuthor({ name: 'CatHub × Ticket otwarty', iconURL: CATHUB_LOGO_URL })
-        .addFields(
-          { name: '📂 Kategoria',  value: TICKET_NAMES[kategoria] || kategoria, inline: true },
-          { name: '👤 Otworzył',   value: `<@${member.id}>`,                    inline: true },
-          { name: '📌 Kanał',      value: `<#${ticketChannel.id}>`,             inline: true },
-          { name: '🕐 Czas',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
-        )
-        .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
-        .setTimestamp()]
-    }).catch(() => {});
-  }
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_claim').setLabel('✋ Przejmij ticket').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Zamknij ticket').setStyle(ButtonStyle.Danger),
+  )];
+}
 
-  await interaction.editReply({ content: `✅ Ticket został otwarty: <#${ticketChannel.id}>` });
+async function openTicket(interaction, kategoria) {
+  try {
+    const modal = new ModalBuilder()
+      .setCustomId(`ticket_open_modal_${kategoria}`)
+      .setTitle(`🎫 Otwórz ticket — ${TICKET_NAMES[kategoria] || kategoria}`);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('metoda_platnosci')
+          .setLabel('Metoda płatności (np. BLIK, BTC, PayPal)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('np. BLIK na numer telefonu')
+          .setRequired(true)
+          .setMaxLength(50)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('kwota_zakupu')
+          .setLabel('Kwota zakupu (np. 50zł, 100k$)')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('np. 50zł lub 365k')
+          .setRequired(true)
+          .setMaxLength(30)
+      ),
+    );
+
+    await interaction.showModal(modal);
+  } catch (err) {
+    console.error('❌ Błąd openTicket:', err.message);
+  }
+}
+
+async function openTicketWithDetails(interaction, kategoria, metodaPlatnosci, kwotaZakupu) {
+  try {
+    await interaction.deferReply({ flags: 64 });
+
+    const guild  = interaction.guild;
+    const member = interaction.member;
+
+    const existing = guild.channels.cache.find(
+      ch => ch.topic && ch.topic.startsWith(`ticket:${kategoria}:${member.id}`)
+    );
+    if (existing) {
+      return interaction.editReply({ content: `❌ Masz już otwarty ticket w tej kategorii: <#${existing.id}>` });
+    }
+
+    const channelName = `ticket-${TICKET_NAMES[kategoria].toLowerCase().replace(/\s+/g, '-')}-${member.user.username}`.slice(0, 100);
+
+    const permissionOverwrites = [
+      { id: guild.id,            deny:  [PermissionsBitField.Flags.ViewChannel] },
+      { id: member.id,           allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+      { id: guild.members.me.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ManageChannels, PermissionsBitField.Flags.ReadMessageHistory] },
+    ];
+
+    for (const rid of SELLER_ROLE_IDS) {
+      permissionOverwrites.push({
+        id: rid,
+        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory]
+      });
+    }
+
+    const ticketChannel = await guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: TICKET_CATEGORY_ID,
+      topic: `ticket:${kategoria}:${member.id}`,
+      permissionOverwrites,
+    });
+
+    const embed = buildTicketChannelEmbed(member, kategoria, metodaPlatnosci, kwotaZakupu);
+    const pings = (TICKET_PINGS[kategoria] || []).join(' ');
+    await ticketChannel.send({
+      content: pings ? `${pings} <@${member.id}>` : `<@${member.id}>`,
+      embeds:  [embed],
+      components: buildTicketActionComponents(),
+    });
+
+    const logCh = guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (logCh) {
+      await logCh.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0x6a00ff)
+          .setAuthor({ name: 'CatHub × Ticket otwarty', iconURL: CATHUB_LOGO_URL })
+          .addFields(
+            { name: '📂 Kategoria', value: TICKET_NAMES[kategoria] || kategoria, inline: true },
+            { name: '👤 Otworzył',  value: `<@${member.id}>`,                    inline: true },
+            { name: '📌 Kanał',     value: `<#${ticketChannel.id}>`,             inline: true },
+            { name: '🕐 Czas',      value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+          )
+          .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+          .setTimestamp()]
+      }).catch(() => {});
+    }
+
+    await interaction.editReply({ content: `✅ Ticket został otwarty: <#${ticketChannel.id}>` });
+  } catch (err) {
+    console.error('❌ Błąd openTicketWithDetails:', err.message);
+    try { await interaction.editReply({ content: '❌ Wystąpił błąd podczas tworzenia ticketu.' }); } catch {}
+  }
 }
 
 // ─── OBSŁUGA INTERAKCJI TICKET ────────────────────────────────────────────────
 async function handleTicketInteraction(interaction) {
 
-// ── OTWÓRZ TICKET — przycisk ───────────────────────────────────────────────
+  // ── OTWÓRZ TICKET — przycisk ───────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId.startsWith('ticket_open_')) {
     const kategoria = interaction.customId.replace('ticket_open_', '');
     await openTicket(interaction, kategoria);
@@ -775,9 +810,9 @@ async function handleTicketInteraction(interaction) {
 
   // ── OTWÓRZ TICKET — modal submit ───────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_open_modal_')) {
-    const kategoria        = interaction.customId.replace('ticket_open_modal_', '');
-    const metodaPlatnosci  = interaction.fields.getTextInputValue('metoda_platnosci').trim();
-    const kwotaZakupu      = interaction.fields.getTextInputValue('kwota_zakupu').trim();
+    const kategoria       = interaction.customId.replace('ticket_open_modal_', '');
+    const metodaPlatnosci = interaction.fields.getTextInputValue('metoda_platnosci').trim();
+    const kwotaZakupu     = interaction.fields.getTextInputValue('kwota_zakupu').trim();
     await openTicketWithDetails(interaction, kategoria, metodaPlatnosci, kwotaZakupu);
     return true;
   }
@@ -824,7 +859,6 @@ async function handleTicketInteraction(interaction) {
     await interaction.update({ components: newComponents });
     await channel.send({ embeds: [claimEmbed] });
 
-    // ─── LOG: ticket przejęty ──────────────────────────────────────────────
     const logCh = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
     if (logCh) {
       await logCh.send({
@@ -832,10 +866,10 @@ async function handleTicketInteraction(interaction) {
           .setColor(0x00cc88)
           .setAuthor({ name: 'CatHub × Ticket przejęty', iconURL: CATHUB_LOGO_URL })
           .addFields(
-            { name: '📌 Kanał',    value: `<#${channel.id}>`,              inline: true },
-            { name: '✋ Przejął',  value: `<@${interaction.user.id}>`,     inline: true },
-            { name: '👤 Owner',    value: ownerId ? `<@${ownerId}>` : '?', inline: true },
-            { name: '🕐 Czas',     value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+            { name: '📌 Kanał',   value: `<#${channel.id}>`,              inline: true },
+            { name: '✋ Przejął', value: `<@${interaction.user.id}>`,     inline: true },
+            { name: '👤 Owner',   value: ownerId ? `<@${ownerId}>` : '?', inline: true },
+            { name: '🕐 Czas',    value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
           )
           .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
           .setTimestamp()]
@@ -898,27 +932,25 @@ async function handleTicketInteraction(interaction) {
       return true;
     }
 
-    // Owner zamknął — informacja że musi czekać na admina
     await interaction.reply({ content: '⚠️ Ticket zostanie zamknięty przez obsługę po zakończeniu transakcji.', flags: 64 });
     return true;
   }
 
   // ── ZAMKNIJ TICKET — modal submit ─────────────────────────────────────────
   if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_close_modal_')) {
-    const kategoria      = interaction.customId.replace('ticket_close_modal_', '');
-    const channel        = interaction.channel;
-    const topic          = channel.topic || '';
-    const [,, ownerId]   = topic.split(':');
+    const kategoria    = interaction.customId.replace('ticket_close_modal_', '');
+    const channel      = interaction.channel;
+    const topic        = channel.topic || '';
+    const [,, ownerId] = topic.split(':');
 
-    const sukces         = interaction.fields.getTextInputValue('transakcja_sukces').trim();
-    const kwotaZl        = interaction.fields.getTextInputValue('kwota_zl').trim();
-    const kwotaDolary    = interaction.fields.getTextInputValue('kwota_dolary').trim();
-    const seller         = interaction.user;
+    const sukces      = interaction.fields.getTextInputValue('transakcja_sukces').trim();
+    const kwotaZl     = interaction.fields.getTextInputValue('kwota_zl').trim();
+    const kwotaDolary = interaction.fields.getTextInputValue('kwota_dolary').trim();
+    const seller      = interaction.user;
 
     const repChannelId   = TICKET_REP_CHANNEL[kategoria] || TICKET_REP_CHANNEL['zakup_pieniedzy'];
     const nazwaKategorii = TICKET_NAMES[kategoria] || kategoria;
-
-    const repText = `+rep <@${seller.id}> ${nazwaKategorii} anarchia.gg ${kwotaZl} ${kwotaDolary}`;
+    const repText        = `+rep <@${seller.id}> ${nazwaKategorii} anarchia.gg ${kwotaZl} ${kwotaDolary}`;
 
     const summaryEmbed = new EmbedBuilder()
       .setColor(sukces.toLowerCase() === 'tak' ? 0x00cc88 : 0xff4444)
@@ -946,33 +978,25 @@ async function handleTicketInteraction(interaction) {
       .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
       .setTimestamp();
 
-await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
+    await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
 
-    // ─── WYŚLIJ TRANSCRIPT DO LOGÓW ───────────────────────────────────────
     await sendTicketTranscript(channel, interaction.guild, seller, ownerId, kategoria, kwotaZl, kwotaDolary, sukces);
 
-    // ─── JEŚLI TRANSAKCJA NIEUDANA — usuń od razu bez +rep ────────────────
-if (sukces.toLowerCase() !== 'tak') {
+    if (sukces.toLowerCase() !== 'tak') {
       await channel.delete('Transakcja nieudana — ticket zamknięty').catch(err => {
         console.error('❌ Błąd usuwania kanału (nieudana transakcja):', err.message);
       });
       return true;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // ─── CZEKAJ NA +REP PRZED ZAMKNIĘCIEM ───────────────────────────────────
-    // Ticket NIE zamknie się od razu. Bot sprawdza przez 15 minut czy owner
-    // napisał +rep w kanale legit-check. Dopiero wtedy usuwa kanał.
-    // ════════════════════════════════════════════════════════════════════════
-    const repChannelIdFinal  = repChannelId;
-    const ownerId_final      = ownerId;
-    const repTextFinal       = repText;
-    const guild              = interaction.guild;
-    const MAX_WAIT_MS        = 15 * 60 * 1000;   // max 15 minut czekania
-    const CHECK_INTERVAL_MS  = 20 * 1000;         // sprawdzaj co 20 sekund
-    const startWait          = Date.now();
+    const repChannelIdFinal = repChannelId;
+    const ownerId_final     = ownerId;
+    const repTextFinal      = repText;
+    const guild             = interaction.guild;
+    const MAX_WAIT_MS       = 15 * 60 * 1000;
+    const CHECK_INTERVAL_MS = 20 * 1000;
+    const startWait         = Date.now();
 
-    // Informacja w kanale że czekamy na +rep
     await channel.send({
       embeds: [new EmbedBuilder()
         .setColor(0xffcc00)
@@ -985,13 +1009,12 @@ if (sukces.toLowerCase() !== 'tak') {
         .setTimestamp()]
     }).catch(() => {});
 
-// ── AUTO +REP via webhook (po 10 minutach jeśli owner nie napisał) ─────
     const autoRepTimer = setTimeout(async () => {
       try {
         const repCh = await client.channels.fetch(repChannelIdFinal).catch(() => null);
         if (!repCh) return;
 
-        const msgs  = await repCh.messages.fetch({ limit: 50 }).catch(() => null);
+        const msgs = await repCh.messages.fetch({ limit: 50 }).catch(() => null);
         if (msgs) {
           const alreadyRepped = msgs.some(m =>
             m.author.id === ownerId_final &&
@@ -1021,8 +1044,7 @@ if (sukces.toLowerCase() !== 'tak') {
       }
     }, 10 * 60 * 1000);
 
-    // ── POLLING: czekaj aż owner napisze +rep, potem zamknij ticket ────────
-   const pollInterval = setInterval(async () => {
+    const pollInterval = setInterval(async () => {
       try {
         const elapsed = Date.now() - startWait;
 
@@ -1112,7 +1134,6 @@ client.once('ready', async () => {
   const guild = client.guilds.cache.get(GUILD_ID);
   if (guild) await updateMemberCount(guild);
 
-// ─── RESET LEGIT CHECK COUNT DO 0 — ### USUŃ PO DEPLOY ──────────────────
   if (guild) {
     const alreadyReset1 = await getConfig('legit_check_reset_done');
     if (!alreadyReset1) {
@@ -1126,7 +1147,6 @@ client.once('ready', async () => {
     }
   }
 
-// ─── RESET LEGIT CHECK 2 COUNT DO 24 — ### USUŃ PO DEPLOY ───────────────
   if (guild) {
     const alreadyReset2 = await getConfig('legit_check2_reset_done');
     if (!alreadyReset2) {
@@ -1159,7 +1179,6 @@ client.once('ready', async () => {
   }, 30 * 1000);
 });
 
-// ─── GUILD MEMBER UPDATE ──────────────────────────────────────────────────────
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
   try {
     if (newMember.guild.id !== GUILD_ID) return;
@@ -1169,7 +1188,6 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
   }
 });
 
-// ─── ANTI-INVITE ──────────────────────────────────────────────────────────────
 const DISCORD_LINK_REGEX = /(discord\.gg\/|discord\.com\/invite\/|dsc\.gg\/)/i;
 
 client.on('messageCreate', async message => {
@@ -1235,7 +1253,6 @@ client.on('messageCreate', async message => {
   }
 });
 
-// ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
   const ticketHandled = await handleTicketInteraction(interaction);
   if (ticketHandled) return;
@@ -1301,9 +1318,9 @@ client.on('interactionCreate', async interaction => {
         .setTitle('🎁 CatShop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
-          { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
-          { name: '🆔 ID',         value: `\`${interaction.user.id}\``, inline: true },
-          { name: '\u200B',        value: '\u200B', inline: true },
+          { name: '👤 Użytkownik',   value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
+          { name: '🆔 ID',           value: `\`${interaction.user.id}\``, inline: true },
+          { name: '\u200B',          value: '\u200B', inline: true },
           { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
         )
         .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
@@ -1758,14 +1775,13 @@ client.on('interactionCreate', async interaction => {
       .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
       .setTitle('🎟️ Twoje zaproszenia')
       .addFields(
-        { name: '👤 Użytkownik', value: `<@${interaction.user.id}>`, inline: true },
-        { name: '🎟️ Zaproszenia', value: `**${count}**`, inline: true }
+        { name: '👤 Użytkownik',   value: `<@${interaction.user.id}>`, inline: true },
+        { name: '🎟️ Zaproszenia', value: `**${count}**`,              inline: true }
       )
       .setFooter({ text: 'Cat Shop | System zaproszeń', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
     return interaction.reply({ embeds: [embed], flags: 64 });
   }
-
 });
 
 client.on('guildMemberAdd', async member => {
@@ -1871,10 +1887,7 @@ client.login(BOT_TOKEN);
 if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
-    new SlashCommandBuilder()
-      .setName('drop')
-      .setDescription('🎁 Wylosuj nagrodę w CatShop!')
-      .toJSON(),
+    new SlashCommandBuilder().setName('drop').setDescription('🎁 Wylosuj nagrodę w CatShop!').toJSON(),
     new SlashCommandBuilder()
       .setName('massrole')
       .setDescription('Masowe nadawanie ról (ONLY OWNER)')
@@ -1889,10 +1902,7 @@ if (process.argv.includes('--setup')) {
       .addStringOption(opt => opt.setName('role_id').setDescription('ID roli').setRequired(true))
       .addStringOption(opt => opt.setName('user_id').setDescription('ID usera (tylko single)').setRequired(false))
       .toJSON(),
-    new SlashCommandBuilder()
-      .setName('setup-verify')
-      .setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem')
-      .toJSON(),
+    new SlashCommandBuilder().setName('setup-verify').setDescription('Wysyła wiadomość weryfikacyjną z przyciskiem').toJSON(),
     new SlashCommandBuilder()
       .setName('transfer')
       .setDescription('Przenosi użytkowników na podany serwer')
@@ -1908,18 +1918,9 @@ if (process.argv.includes('--setup')) {
       .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ile losowych osób (tryb random)').setRequired(false))
       .addStringOption(opt => opt.setName('user_id').setDescription('ID użytkownika (tryb id)').setRequired(false))
       .toJSON(),
-    new SlashCommandBuilder()
-      .setName('setup-verify-math')
-      .setDescription('Wysyła alternatywną weryfikację matematyczną')
-      .toJSON(),
-    new SlashCommandBuilder()
-      .setName('zaproszeniamoje')
-      .setDescription('🎟️ Sprawdź ile masz zaproszeń')
-      .toJSON(),
-    new SlashCommandBuilder()
-      .setName('setup-tickets')
-      .setDescription('Wysyła panel ticketów')
-      .toJSON()
+    new SlashCommandBuilder().setName('setup-verify-math').setDescription('Wysyła alternatywną weryfikację matematyczną').toJSON(),
+    new SlashCommandBuilder().setName('zaproszeniamoje').setDescription('🎟️ Sprawdź ile masz zaproszeń').toJSON(),
+    new SlashCommandBuilder().setName('setup-tickets').setDescription('Wysyła panel ticketów').toJSON(),
   ];
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
