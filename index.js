@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-const legitCheckMap = new Map();
 const statusLinkCache = new Map();
 const usedCodes = new Set();
 const express = require('express');
@@ -42,16 +41,12 @@ const WELCOME_CHANNEL_ID     = '1505521873134424221';
 const KALKULATOR_CHANNEL_ID  = '1505539734007578705';
 const KALKULATOR_MSG_KEY     = 'kalkulator_message_id';
 const TRANSFER_ROLE_ID       = '1505521872232644685';
-const TICKET_CATEGORY_ID     = '1495432511893803060';
-const TICKET_LOG_CHANNEL_ID  = '1495432512506429465';
-const LEGIT_CHECK_CHANNEL_ID = '1495432512175083607';
 
 const METODY_CHANNEL_ID      = '1505521873402855450';
 const METODY_MSG_KEY         = 'metody_message_id';
 const PROPOZYCJE_CHANNEL_ID  = '1505530602953244864';
 const PROPOZYCJE_MSG_KEY     = 'propozycje_message_id';
 
-const STAFF_BASE_ROLE_ID     = '1495432509263974438';
 const SS_SHOP_EMOJI_URL      = 'https://i.imgur.com/Y65cjjd.png';
 const RAVEN_LOGO_URL         = SS_SHOP_EMOJI_URL;
 
@@ -158,155 +153,6 @@ async function logDropResult(interaction, nagroda) {
   }
 }
 
-// ─── TICKET: tworzenie ────────────────────────────────────────────────────────
-async function createTicketChannel(guild, user) {
-  const ticketName = `ticket-${user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}-${Date.now().toString().slice(-4)}`;
-
-  const existing = await pool.query(
-    `SELECT channel_id FROM tickets WHERE user_id = $1 AND status = 'open'`,
-    [user.id]
-  );
-  if (existing.rows.length > 0) {
-    const existingChannelId = existing.rows[0].channel_id;
-    const existingChannel = await guild.channels.fetch(existingChannelId).catch(() => null);
-    if (existingChannel) return { exists: true, channelId: existingChannelId };
-    await pool.query(`DELETE FROM tickets WHERE channel_id = $1`, [existingChannelId]);
-  }
-
-  const baseRole     = guild.roles.cache.get(STAFF_BASE_ROLE_ID);
-  const basePosition = baseRole ? baseRole.position : 0;
-  const staffRoles   = guild.roles.cache.filter(r => r.position >= basePosition && r.id !== guild.id);
-
-  const permissionOverwrites = [
-    { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-    {
-      id: user.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-      ],
-    },
-    ...staffRoles.map(role => ({
-      id: role.id,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ReadMessageHistory,
-      ],
-    })),
-  ];
-
-  let channelOptions = {
-    name: ticketName,
-    type: ChannelType.GuildText,
-    permissionOverwrites,
-    topic: `Otwarty ticket | ${user.tag}`,
-  };
-
-  try {
-    const cat = await guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
-    if (cat && cat.type === ChannelType.GuildCategory) channelOptions.parent = TICKET_CATEGORY_ID;
-  } catch {}
-
-  const ticketChannel = await guild.channels.create(channelOptions);
-  await pool.query(
-    `INSERT INTO tickets (channel_id, user_id, status) VALUES ($1,$2,'open')`,
-    [ticketChannel.id, user.id]
-  );
-
-  return { exists: false, channel: ticketChannel };
-}
-
-// ─── TICKET: wiadomość powitalna ──────────────────────────────────────────────
-async function sendTicketWelcome(ticketChannel, user) {
-  const embed = new EmbedBuilder()
-    .setColor(0x6a00ff)
-    .setAuthor({ name: '🐈 Cat Shop 🐈 × Nowy Ticket', iconURL: SS_SHOP_EMOJI_URL })
-    .setTitle('🛍️ Twój ticket został otwarty')
-    .setDescription(
-      `Witaj <@${user.id}>! 🐈\n\n` +
-      `Dziękujemy za zainteresowanie. Twój ticket został pomyślnie utworzony.\n\n` +
-      `Proszę cierpliwie czekać, członek naszej obsługi zaraz się Tobą zajmie! 🐈`
-    )
-    .setFooter({ text: 'Cat Shop | System Ticketów 🐈' })
-    .setTimestamp();
-
-  const actionRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('przejmij_ticket').setLabel('🤝 Przejmij').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('zamknij_ticket').setLabel('🔒 Zamknij Ticket').setStyle(ButtonStyle.Danger)
-  );
-
-  await ticketChannel.send({ content: `<@${user.id}>`, embeds: [embed], components: [actionRow] });
-}
-
-// ─── TICKET: zamknięcie ───────────────────────────────────────────────────────
-async function closeTicket(ticketChannel, closedBy) {
-  try {
-    const messages = await ticketChannel.messages.fetch({ limit: 100 });
-    const sorted   = [...messages.values()].reverse();
-    const transcript = sorted.map(m => {
-      const time    = new Date(m.createdTimestamp).toLocaleString('pl-PL');
-      const content = m.content || (m.embeds.length > 0 ? '[Embed]' : '[Brak treści]');
-      return `[${time}] ${m.author.tag}: ${content}`;
-    }).join('\n');
-
-    const ticketData = await pool.query(`SELECT * FROM tickets WHERE channel_id = $1`, [ticketChannel.id]);
-    const ticket = ticketData.rows[0] || {};
-
-    try {
-      const logChannel = await client.channels.fetch(TICKET_LOG_CHANNEL_ID);
-      if (logChannel) {
-        const logEmbed = new EmbedBuilder()
-          .setColor(0xff0000)
-          .setTitle('🔒 Ticket zamknięty — Transcript')
-          .addFields(
-            { name: '👤 Użytkownik', value: ticket.user_id ? `<@${ticket.user_id}>` : 'nieznany', inline: true },
-            { name: '🔒 Zamknął',    value: closedBy?.tag || closedBy?.username || 'nieznany',    inline: true },
-            { name: '📅 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,             inline: true }
-          )
-          .setFooter({ text: 'Cat Shop | System Ticketów 🐈' })
-          .setTimestamp();
-        const transcriptBuffer = Buffer.from(transcript || '(brak wiadomości)', 'utf-8');
-        await logChannel.send({
-          embeds: [logEmbed],
-          files: [{ attachment: transcriptBuffer, name: `transcript-${ticketChannel.name}.txt` }]
-        });
-      }
-    } catch (logErr) {
-      console.error('❌ Błąd wysyłania transcriptu na logi:', logErr.message);
-    }
-
-    await pool.query(`UPDATE tickets SET status = 'closed' WHERE channel_id = $1`, [ticketChannel.id]);
-    await ticketChannel.send('🔒 **Ticket zostanie zamknięty za 5 sekund...**');
-    await new Promise(r => setTimeout(r, 5000));
-    await ticketChannel.delete().catch(() => {});
-  } catch (err) {
-    console.error('❌ Błąd zamykania ticketu:', err.message);
-  }
-}
-
-// ─── WEBHOOK HELPER ───────────────────────────────────────────────────────────
-async function sendViaWebhook(channel, content, username, avatarURL) {
-  try {
-    const webhooks = await channel.fetchWebhooks();
-    let webhook = webhooks.find(w => w.owner?.id === client.user?.id && w.name === 'Cat Shop LC');
-    if (!webhook) {
-      webhook = await channel.createWebhook({ name: 'Cat Shop LC', avatar: SS_SHOP_EMOJI_URL, reason: 'Auto legit check webhook' });
-    }
-    const sent = await webhook.send({
-      content,
-      username:  username  || 'Klient',
-      avatarURL: avatarURL || `https://cdn.discordapp.com/embed/avatars/0.png`,
-    });
-    const fetchedMsg = await channel.messages.fetch(sent.id).catch(() => null);
-    return fetchedMsg;
-  } catch (err) {
-    console.error('❌ Błąd sendViaWebhook:', err.message);
-    return await channel.send(content).catch(() => null);
-  }
-}
-
 // ─── GIFY POWITALNE ───────────────────────────────────────────────────────────
 const WELCOME_GIFS = [
   { url: 'https://media.giphy.com/media/yWku98eNsMSZOEEWnC/giphy.gif', weight: 80   },
@@ -383,19 +229,6 @@ async function initDB() {
       value TEXT
     )
   `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS tickets (
-      ticket_id          SERIAL PRIMARY KEY,
-      channel_id         TEXT UNIQUE,
-      user_id            TEXT,
-      status             TEXT DEFAULT 'open',
-      taken_by_user_id   TEXT DEFAULT NULL,
-      taken_by_username  TEXT DEFAULT NULL,
-      created_at         TIMESTAMP DEFAULT NOW()
-    )
-  `);
-  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_user_id TEXT;`);
-  await pool.query(`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS taken_by_username TEXT;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS drop_data (
       user_id    TEXT PRIMARY KEY,
@@ -1071,64 +904,6 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // ── TICKET: otwórz ────────────────────────────────────────────────────────
-  if (interaction.isChatInputCommand() && interaction.commandName === 'ticket') {
-    await interaction.deferReply({ flags: 64 });
-    const guild  = interaction.guild;
-    const result = await createTicketChannel(guild, interaction.user);
-    if (result.exists) {
-      await interaction.editReply({ content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}>. 🐈` });
-      return;
-    }
-    await sendTicketWelcome(result.channel, interaction.user);
-    await interaction.editReply({ content: `✅ **Ticket został otwarty!**\n📩 Kanał: <#${result.channel.id}>\nObsługa wkrótce się z Tobą skontaktuje 🐈` });
-    return;
-  }
-
-  // ── PRZEJMIJ TICKET ───────────────────────────────────────────────────────
-  if (interaction.isButton() && interaction.customId === 'przejmij_ticket') {
-    const ticketData = await pool.query(`SELECT * FROM tickets WHERE channel_id = $1`, [interaction.channel.id]);
-    const ticket = ticketData.rows[0];
-    if (!ticket) return interaction.reply({ content: '❌ Nie znaleziono ticketu w bazie danych.', flags: 64 });
-    if (ticket.taken_by_user_id) return interaction.reply({ content: `❌ Ten ticket został już przejęty przez <@${ticket.taken_by_user_id}>.`, flags: 64 });
-
-    await pool.query(
-      `UPDATE tickets SET taken_by_user_id = $1, taken_by_username = $2 WHERE channel_id = $3`,
-      [interaction.user.id, interaction.user.username, interaction.channel.id]
-    );
-
-    const newName = `przejete-${interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, '')}`;
-    await interaction.channel.setName(newName).catch(() => {});
-    await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { ViewChannel: false }).catch(() => {});
-    await interaction.channel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => {});
-    await interaction.channel.permissionOverwrites.edit(ticket.user_id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }).catch(() => {});
-
-    const updatedActionRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('zamknij_ticket').setLabel('🔒 Zamknij Ticket').setStyle(ButtonStyle.Danger)
-    );
-    await interaction.message.edit({ embeds: interaction.message.embeds, components: [updatedActionRow] }).catch(() => {});
-    await interaction.reply({ content: `✅ <@${interaction.user.id}> przejął ticket i zajmie się obsługą klienta! 🐈` });
-    return;
-  }
-
-  // ── ZAMKNIJ TICKET ────────────────────────────────────────────────────────
-  if (interaction.isButton() && interaction.customId === 'zamknij_ticket') {
-    const ticketData = await pool.query(`SELECT * FROM tickets WHERE channel_id = $1`, [interaction.channel.id]);
-    const ticket = ticketData.rows[0];
-
-    const isAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
-    const isOwner = ticket && ticket.user_id === interaction.user.id;
-    const isTaker = ticket && ticket.taken_by_user_id === interaction.user.id;
-
-    if (!isAdmin && !isOwner && !isTaker) {
-      return interaction.reply({ content: '❌ Tylko admin, właściciel ticketu lub osoba, która go przejęła, może go zamknąć!', flags: 64 });
-    }
-
-    await interaction.deferReply({ flags: 64 });
-    await closeTicket(interaction.channel, interaction.user);
-    return;
-  }
-
   // ── WERYFIKACJA ───────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'verify') {
     const oauthUrl =
@@ -1289,10 +1064,6 @@ if (process.argv.includes('--setup')) {
       .setDescription('🎁 Wylosuj nagrodę w CatShop!')
       .toJSON(),
     new SlashCommandBuilder()
-      .setName('ticket')
-      .setDescription('🎫 Otwórz ticket pomocy')
-      .toJSON(),
-    new SlashCommandBuilder()
       .setName('massrole')
       .setDescription('Masowe nadawanie ról (ONLY OWNER)')
       .addStringOption(opt =>
@@ -1426,6 +1197,6 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => { 
-  console.log(`✅ Serwer HTTP działa na porcie ${PORT}`); 
+app.listen(PORT, () => {
+  console.log(`✅ Serwer HTTP działa na porcie ${PORT}`);
 });
