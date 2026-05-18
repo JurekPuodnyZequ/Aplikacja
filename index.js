@@ -79,15 +79,15 @@ const activeWins = new Map();
 
 // ─── NAGRODY ──────────────────────────────────────────────────────────────────
 const DROP_NAGRODY = [
-  { nazwa: '-2.5% zniżki w SSshop',    emoji: '🏷️', szansa: 3.68 },
-  { nazwa: '-5% zniżki w SSshop',      emoji: '🏷️', szansa: 1.472 },
-  { nazwa: '-10% zniżki w SSshop',     emoji: '🏷️', szansa: 0.10 },
+  { nazwa: '-2.5% zniżki w CatShop',    emoji: '🏷️', szansa: 3.68 },
+  { nazwa: '-5% zniżki w CatShop',      emoji: '🏷️', szansa: 1.472 },
+  { nazwa: '-10% zniżki w CatShop',     emoji: '🏷️', szansa: 0.10 },
   { nazwa: '5k Anarchia',              emoji: '💰', szansa: 1.84 },
   { nazwa: '8k Anarchia LF',           emoji: '💰', szansa: 0.50 },
   { nazwa: '15k Anarchia LF',          emoji: '💰', szansa: 0.10 },
-  { nazwa: '1zł do wydania na SSshop', emoji: '💵', szansa: 1.472 },
-  { nazwa: '2zł do wydania na SSshop', emoji: '💵', szansa: 0.736 },
-  { nazwa: '3zł do wydania na SSshop', emoji: '💵', szansa: 0.10 },
+  { nazwa: '1zł do wydania na CatShop', emoji: '💵', szansa: 1.472 },
+  { nazwa: '2zł do wydania na CatShop', emoji: '💵', szansa: 0.736 },
+  { nazwa: '3zł do wydania na CatShop', emoji: '💵', szansa: 0.10 },
 ];
 
 function losujNagrode() {
@@ -189,7 +189,7 @@ async function logDropResult(interaction, nagroda) {
           inline: false
         }
       )
-      .setFooter({ text: 'SS Shop | Drop System', iconURL: SS_SHOP_EMOJI_URL })
+      .setFooter({ text: 'Cat Shop | Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     await logChannel.send({ embeds: [embed] });
@@ -290,11 +290,11 @@ async function sendWelcomeMessage(member) {
       .setColor(0x6a00ff)
       .setTitle(`💸Witaj na serwerze, **${member.user.username}**!💸`)
       .setDescription(
-        `💜 Cieszymy się, że dołączyłeś do **SS Shop**! 💜\n` +
-        `💜 Zweryfikuj się i sprawdź naszą ofertę pelerynek! 💜\n\n`
+        `🐈 Cieszymy się, że dołączyłeś do **Cat Shop**! 🐈\n` +
+        `🐈 Zweryfikuj się i sprawdź naszą ofertę pelerynek! 🐈\n\n`
       )
       .setThumbnail(randomGif)
-      .setFooter({ text: 'SS Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
+      .setFooter({ text: 'Cat Shop | Witamy!', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
     await welcomeChannel.send({ content: `<@${member.user.id}>`, embeds: [welcomeEmbed] });
   } catch (err) {
@@ -552,7 +552,7 @@ function buildSelectMenuRow(customId) {
   });
   const select = new StringSelectMenuBuilder()
     .setCustomId(customId)
-    .setPlaceholder('💜 Wybierz metodę płatności...')
+    .setPlaceholder('🐈 Wybierz metodę płatności...')
     .addOptions(options);
   return new ActionRowBuilder().addComponents(select);
 }
@@ -574,25 +574,25 @@ function buildKalkulatorEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '💜 SS Shop 💜 × Kalkulator Prowizji',
+      name: '🐈 Cat Shop 🐈 × Kalkulator Prowizji',
       iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
     .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
-    .setTitle('💜 Kalkulator Prowizji — SS Shop 💜')
+    .setTitle('🐈 Kalkulator Prowizji — Cat Shop 🐈')
     .setDescription(
       '>>> Jeżeli chcesz obliczyć **prowizję swojej wymiany**, kliknij odpowiedni przycisk poniżej.\n' +
       'Wybór metody płatności oraz wpisanie kwoty odbywa się w wyskakującym okienku — **nikt inny tego nie zobaczy!**\n\n' +
-      '💜 Kliknij przycisk i postępuj zgodnie z instrukcjami!'
+      '🐈 Kliknij przycisk i postępuj zgodnie z instrukcjami!'
     )
     .addFields(
-      { name: '💜 Kurs wymiany', value: `1 zł = **${formatDolary(PRZELICZNIK)} $**`, inline: true },
+      { name: '🐈 Kurs wymiany', value: `1 zł = **${formatDolary(PRZELICZNIK)} $**`, inline: true },
       {
-        name: '💜 Dostępne metody płatności',
+        name: '🐈 Dostępne metody płatności',
         value: Object.values(PROWIZJE).map(d => `${d.emoji} **${d.nazwa}** — \`${d.prowizja}%\` prowizji`).join('\n'),
         inline: false
       }
     )
-    .setFooter({ text: 'SS Shop | Kalkulator Prowizji 💜' })
+    .setFooter({ text: 'Cat Shop | Kalkulator Prowizji 🐈' })
     .setTimestamp();
 }
 
@@ -624,13 +624,13 @@ function buildCennikEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '💜 SS Shop 💜 × Cennik Pelerynek',
+      name: '🐈 Cat Shop 🐈 × Cennik Pelerynek',
       iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
     .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
-    .setTitle('💜 Cennik Pelerynek — SS Shop 💜')
+    .setTitle('🐈 Cennik Pelerynek — Cat Shop 🐈')
     .setDescription(
-      '>>> Poniżej znajdziesz aktualny cennik pelerynek dostępnych w **SS Shop**.\n\n' +
+      '>>> Poniżej znajdziesz aktualny cennik pelerynek dostępnych w **Cat Shop**.\n\n' +
       '**Zestawy** ustalamy indywidualnie — napisz do nas na tickecie! 🎁'
     )
     .addFields(
@@ -664,7 +664,7 @@ function buildCennikEmbed() {
         inline: false
       }
     )
-    .setFooter({ text: 'SS Shop | Cennik Pelerynek 💜' })
+    .setFooter({ text: 'Cat Shop | Cennik Pelerynek 🐈' })
     .setTimestamp();
 }
 
@@ -705,13 +705,13 @@ function buildMetodyEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '💜 SS Shop 💜 × Metody Płatności',
+      name: '🐈 Cat Shop 🐈 × Metody Płatności',
       iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
     .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
-    .setTitle('💜 Metody Płatności — SS Shop 💜')
+    .setTitle('🐈 Metody Płatności — Cat Shop 🐈')
     .setDescription(
-      '>>> Poniżej znajdziesz wszystkie dostępne metody płatności w **SS Shop** wraz z prowizjami.\n\n' +
+      '>>> Poniżej znajdziesz wszystkie dostępne metody płatności w **Cat Shop** wraz z prowizjami.\n\n' +
       '**Przy tworzeniu ticketa wpisz dokładną nazwę metody płatności**, np: `PSC bez paragonu`.'
     )
     .addFields({
@@ -730,7 +730,7 @@ function buildMetodyEmbed() {
         `<:paypal:1498357795433746653> **PayPal** — \`13%\` prowizji\n`,
       inline: false
     })
-    .setFooter({ text: 'SS Shop | Metody Płatności 💜' })
+    .setFooter({ text: 'Cat Shop | Metody Płatności 🐈' })
     .setTimestamp();
 }
 
@@ -760,13 +760,13 @@ async function sendOrUpdateMetody() {
 function buildPropozycjeMainEmbed() {
   return new EmbedBuilder()
     .setColor(0xFFFFFF)
-    .setAuthor({ name: 'SSshop × PROPOZYCJE', iconURL: RAVEN_LOGO_URL })
+    .setAuthor({ name: 'CatShop × PROPOZYCJE', iconURL: RAVEN_LOGO_URL })
     .setDescription(
       '>>> **»** Masz pomysł na ulepszenie serwera?\n' +
       '**»** Kliknij przycisk poniżej i **wystaw swoją propozycję**.\n' +
       '**»** Społeczność zagłosuje czy ją **przyjąć** ✅ czy **odrzucić** ❌.'
     )
-    .setFooter({ text: 'SSshop © 2026' })
+    .setFooter({ text: 'CatShop © 2026' })
     .setTimestamp();
 }
 
@@ -870,20 +870,20 @@ async function sendTicketWelcome(ticketChannel, user, pelerynkaNazwa, cenaTekst,
   const embed = new EmbedBuilder()
     .setColor(0x6a00ff)
     .setAuthor({
-      name: '💜 SS Shop 💜 × Nowy Ticket',
+      name: '🐈 Cat Shop 🐈 × Nowy Ticket',
       iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
     })
     .setTitle("🛍️ Twój ticket został otwarty")
     .setDescription(
-      `Witaj <@${user.id}>! 💜\n\n` +
+      `Witaj <@${user.id}>! 🐈\n\n` +
       `Dziękujemy za zainteresowanie naszą ofertą. Twój ticket został pomyślnie utworzony.\n\n` +
       `**Szczegóły zgłoszenia:**\n` +
       `> 🛒 Pelerynka: **${pelerynkaNazwa}**\n` +
       `> 💵 Cena: **${cenaTekst}**\n` +
       `> 💳 Metoda płatności: **${metodaNazwa}**\n\n` +
-      `Proszę cierpliwie czekać, członek naszej obsługi zaraz się Tobą zajmie! 💜`
+      `Proszę cierpliwie czekać, członek naszej obsługi zaraz się Tobą zajmie! 🐈`
     )
-    .setFooter({ text: 'SS Shop | System Ticketów 💜' })
+    .setFooter({ text: 'Cat Shop | System Ticketów 🐈' })
     .setTimestamp();
 
   const actionRow = new ActionRowBuilder().addComponents(
@@ -935,7 +935,7 @@ async function closeTicket(ticketChannel, closedBy) {
             { name: '🔒 Zamknął',          value: closedBy?.tag || closedBy?.username || 'nieznany',    inline: true },
             { name: '📅 Data',             value: `<t:${Math.floor(Date.now() / 1000)}:F>`,             inline: true }
           )
-          .setFooter({ text: 'SS Shop | System Ticketów 💜' })
+          .setFooter({ text: 'Cat Shop | System Ticketów 🐈' })
           .setTimestamp();
 
         const transcriptBuffer = Buffer.from(transcript || '(brak wiadomości)', 'utf-8');
@@ -962,11 +962,11 @@ async function closeTicket(ticketChannel, closedBy) {
 async function sendViaWebhook(channel, content, username, avatarURL) {
   try {
     const webhooks = await channel.fetchWebhooks();
-    let webhook = webhooks.find(w => w.owner?.id === client.user?.id && w.name === 'SS Shop LC');
+    let webhook = webhooks.find(w => w.owner?.id === client.user?.id && w.name === 'Cat Shop LC');
 
     if (!webhook) {
       webhook = await channel.createWebhook({
-        name: 'SS Shop LC',
+        name: 'Cat Shop LC',
         avatar: SS_SHOP_EMOJI_URL,
         reason: 'Auto legit check webhook'
       });
@@ -1081,7 +1081,7 @@ client.on('messageCreate', async message => {
             { name: '⏱️ Czas',       value: '7 dni',                                            inline: true },
             { name: '🕐 Data',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`,           inline: true }
           )
-          .setFooter({ text: 'SS Shop | System anty-link' })]
+          .setFooter({ text: 'Cat Shop | System anty-link' })]
       });
     }
   } catch (err) {
@@ -1151,12 +1151,12 @@ client.on('interactionCreate', async interaction => {
 
     const propEmbed = new EmbedBuilder()
       .setColor(0xFFFFFF)
-      .setAuthor({ name: 'SS Shop × PROPOZYCJA', iconURL: SS_SHOP_EMOJI_URL })
+      .setAuthor({ name: 'Cat Shop × PROPOZYCJA', iconURL: SS_SHOP_EMOJI_URL })
       .setDescription(
         '> 👤 <@' + user.id + '>\n' +
         '> 💡 *' + tresc + '*'
       )
-      .setFooter({ text: 'SS Shop © 2026', iconURL: SS_SHOP_EMOJI_URL })
+      .setFooter({ text: 'Cat Shop © 2026', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     try {
@@ -1198,8 +1198,8 @@ client.on('interactionCreate', async interaction => {
     if (!hasRole) {
       const errEmbed = new EmbedBuilder()
         .setColor(0xFF4444)
-        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 SSshop × DROP')
+        .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 CatShop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1207,7 +1207,7 @@ client.on('interactionCreate', async interaction => {
           { name: '\u200B', value: '\u200B', inline: true },
           { name: '❌ Brak dostępu', value: 'Nie masz wymaganej rangi do użycia tej komendy!', inline: false }
         )
-        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
       return interaction.reply({ embeds: [errEmbed] });
     }
@@ -1219,8 +1219,8 @@ client.on('interactionCreate', async interaction => {
     if (remaining > 0) {
       const embed = new EmbedBuilder()
         .setColor(0xff4444)
-        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 SSshop × DROP')
+        .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 CatShop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1229,7 +1229,7 @@ client.on('interactionCreate', async interaction => {
           { name: '❌ Wynik', value: 'Masz Cooldown! — poczekaj 2h!', inline: false },
           { name: '⏳ Dostępny za', value: `<t:${Math.floor((dropData.last_drop + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: false },
         )
-        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed], flags: 64 });
@@ -1243,8 +1243,8 @@ client.on('interactionCreate', async interaction => {
 
       const embed = new EmbedBuilder()
         .setColor(0x2B2D31)
-        .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-        .setTitle('🎁 SSshop × DROP')
+        .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+        .setTitle('🎁 CatShop × DROP')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1253,7 +1253,7 @@ client.on('interactionCreate', async interaction => {
           { name: '❌ Wynik', value: 'Tym razem nic się nie trafiło. Spróbuj za 2 godziny!', inline: false },
           { name: '⏳ Następny drop', value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: false },
         )
-        .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed] });
@@ -1265,8 +1265,8 @@ client.on('interactionCreate', async interaction => {
 
     const embedWin = new EmbedBuilder()
       .setColor(0x6a00ff)
-      .setAuthor({ name: 'SSshop × DROP', iconURL: SS_SHOP_EMOJI_URL })
-      .setTitle('🎁 SSshop × DROP')
+      .setAuthor({ name: 'CatShop × DROP', iconURL: SS_SHOP_EMOJI_URL })
+      .setTitle('🎁 CatShop × DROP')
       .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
       .addFields(
         { name: '👤 Użytkownik', value: `${interaction.user.globalName || interaction.user.username} (\`${interaction.user.username}\`)`, inline: true },
@@ -1276,7 +1276,7 @@ client.on('interactionCreate', async interaction => {
         { name: '⏳ Następny drop', value: `<t:${Math.floor((now + DROP_COOLDOWN_MS) / 1000)}:R>`, inline: true },
         { name: '\u200B', value: '\u200B', inline: true },
       )
-      .setFooter({ text: 'SSshop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
+      .setFooter({ text: 'CatShop • Drop System', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     return interaction.reply({ embeds: [embedWin] });
@@ -1307,7 +1307,7 @@ client.on('interactionCreate', async interaction => {
         { name: '🎟️ Dodano tokenów', value: `**${ilosc}**`,                                    inline: true },
         { name: '💰 Nowy balans',   value: `**${nowyBalans}** tokenów`,                        inline: true }
       )
-      .setFooter({ text: 'SS Shop | System Tokenów', iconURL: SS_SHOP_EMOJI_URL })
+      .setFooter({ text: 'Cat Shop | System Tokenów', iconURL: SS_SHOP_EMOJI_URL })
       .setTimestamp();
 
     return interaction.reply({ embeds: [embed] });
@@ -1328,17 +1328,17 @@ client.on('interactionCreate', async interaction => {
     if (tokeny < 1) {
       const embed = new EmbedBuilder()
         .setColor(0xff4444)
-        .setTitle('🎲 SSshop × Dice')
+        .setTitle('🎲 CatShop × Dice')
         .setDescription(`❌ **Nie masz żetonów!**\nKup żetony, aby móc grać.\n\n🎟️ Twój balans: **0 tokenów**`)
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
-        .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'Cat Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
     const modal = new ModalBuilder()
       .setCustomId('modal_dice')
-      .setTitle('🎲 Dice — SS Shop');
+      .setTitle('🎲 Dice — Cat Shop');
 
     modal.addComponents(
       new ActionRowBuilder().addComponents(
@@ -1393,7 +1393,7 @@ client.on('interactionCreate', async interaction => {
     if (tokeny < stawkaTokeny) {
       const embed = new EmbedBuilder()
         .setColor(0xff4444)
-        .setTitle('🎲 SSshop × Dice — Brak tokenów!')
+        .setTitle('🎲 CatShop × Dice — Brak tokenów!')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .setDescription(
           `❌ **Nie masz wystarczająco tokenów!**\n\n` +
@@ -1401,7 +1401,7 @@ client.on('interactionCreate', async interaction => {
           `🎯 Chciałeś postawić: **${stawkaTokeny} tokenów**\n\n` +
           `Brakuje Ci **${stawkaTokeny - tokeny}** tokenów.`
         )
-        .setFooter({ text: 'SS Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'Cat Shop | Dice System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
@@ -1432,7 +1432,7 @@ client.on('interactionCreate', async interaction => {
 
       const embedWin = new EmbedBuilder()
         .setColor(0x00cc44)
-        .setTitle('🎲 SSshop × Dice — WYGRANA! 🎉')
+        .setTitle('🎲 CatShop × Dice — WYGRANA! 🎉')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                inline: true  },
@@ -1447,7 +1447,7 @@ client.on('interactionCreate', async interaction => {
           `*(${stawkaTokeny} tokenów × 30k × ${numerek} = ${formatDolary(wygranaSum)} $)*\n\n` +
           `💡 Użyj \`/double\` aby podwoić wygraną (lub stracić wszystko)!`
         )
-        .setFooter({ text: `SS Shop | Dice System`, iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: `Cat Shop | Dice System`, iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedWin] });
@@ -1457,7 +1457,7 @@ client.on('interactionCreate', async interaction => {
 
       const embedLose = new EmbedBuilder()
         .setColor(0xff4444)
-        .setTitle('🎲 SSshop × Dice — Przegrana')
+        .setTitle('🎲 CatShop × Dice — Przegrana')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .addFields(
           { name: '👤 Gracz',              value: `<@${interaction.user.id}>`,                                  inline: true },
@@ -1467,7 +1467,7 @@ client.on('interactionCreate', async interaction => {
           { name: '🎟️ Tokeny pozostałe',    value: `**${tokenyPo}**`,                                           inline: true }
         )
         .setDescription(`❌ **Nie trafiłeś!** Tym razem szczęście nie dopisało.\n\nSpróbuj ponownie — żetonów można kupić więcej!`)
-        .setFooter({ text: `SS Shop | Dice System `, iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: `Cat Shop | Dice System `, iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedLose] });
@@ -1513,7 +1513,7 @@ client.on('interactionCreate', async interaction => {
 
       const embedWin = new EmbedBuilder()
         .setColor(0xFFD700)
-        .setTitle('🎲 SSshop × Double — DOUBLE WYGRANA! 🎉🎉')
+        .setTitle('🎲 CatShop × Double — DOUBLE WYGRANA! 🎉🎉')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .setDescription(
           `🔥 **NIESAMOWITE!** Podwoiłeś swoją wygraną!\n\n` +
@@ -1526,7 +1526,7 @@ client.on('interactionCreate', async interaction => {
           { name: '💰 Poprzednia',      value: `**${formatDolary(wygrana)} $**`,    inline: true },
           { name: '🏆 Po double (x2)', value: `**${formatDolary(wygranaX2)} $**`,  inline: true }
         )
-        .setFooter({ text: 'SS Shop | Double System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'Cat Shop | Double System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedWin] });
@@ -1534,7 +1534,7 @@ client.on('interactionCreate', async interaction => {
     } else {
       const embedLose = new EmbedBuilder()
         .setColor(0xff0000)
-        .setTitle('🎲 SSshop × Double — Straciłeś wszystko!')
+        .setTitle('🎲 CatShop × Double — Straciłeś wszystko!')
         .setThumbnail(interaction.user.displayAvatarURL({ extension: 'png', size: 256 }))
         .setDescription(
           `💸 **Tym razem się nie udało...**\n\n` +
@@ -1546,7 +1546,7 @@ client.on('interactionCreate', async interaction => {
           { name: '💸 Stracono', value: `**${formatDolary(wygrana)} $**`,   inline: true },
           { name: '😭 Wynik',    value: '**Nic**',                           inline: true }
         )
-        .setFooter({ text: 'SS Shop | Double System', iconURL: SS_SHOP_EMOJI_URL })
+        .setFooter({ text: 'Cat Shop | Double System', iconURL: SS_SHOP_EMOJI_URL })
         .setTimestamp();
 
       return interaction.editReply({ content: null, embeds: [embedLose] });
@@ -1629,7 +1629,7 @@ client.on('interactionCreate', async interaction => {
 
   // ── KALKULATOR: ile dostanę ────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_dostane') {
-    await interaction.reply({ content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_dostane')], flags: 64 });
+    await interaction.reply({ content: '🐈 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_dostane')], flags: 64 });
     return;
   }
 
@@ -1656,11 +1656,11 @@ client.on('interactionCreate', async interaction => {
     const dolary         = po_prowizji_zl * PRZELICZNIK;
     await interaction.reply({
       content:
-        `💜 **Wynik kalkulatora SS Shop:**\n\n` +
+        `🐈 **Wynik kalkulatora Cat Shop:**\n\n` +
         `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
         `💵 Wysyłasz: **${kwotaZl.toFixed(2)} zł**\n` +
         `💸 Prowizja (\`${metoda.prowizja}%\`): **-${prowizja_zl.toFixed(2)} zł**\n` +
-        `💜 Dolary serwerowe, które otrzymasz: **${formatDolary(dolary)} $**`,
+        `🐈 Dolary serwerowe, które otrzymasz: **${formatDolary(dolary)} $**`,
       flags: 64
     });
     return;
@@ -1668,7 +1668,7 @@ client.on('interactionCreate', async interaction => {
 
   // ── KALKULATOR: ile zapłacić ──────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kalkulator_ile_zaplacic') {
-    await interaction.reply({ content: '💜 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_zaplacic')], flags: 64 });
+    await interaction.reply({ content: '🐈 **Krok 1 z 2** — Wybierz metodę płatności:', components: [buildSelectMenuRow('select_ile_zaplacic')], flags: 64 });
     return;
   }
 
@@ -1695,9 +1695,9 @@ client.on('interactionCreate', async interaction => {
     const prowizja_zl    = do_zaplaty_zl - bazowa_cena_zl;
     await interaction.reply({
       content:
-        `💜 **Wynik kalkulatora SS Shop:**\n\n` +
+        `🐈 **Wynik kalkulatora Cat Shop:**\n\n` +
         `${metoda.emoji} Metoda: **${metoda.nazwa}**\n` +
-        `💜 Chcesz otrzymać: **${formatDolary(dolary)} $**\n` +
+        `🐈 Chcesz otrzymać: **${formatDolary(dolary)} $**\n` +
         `💸 Prowizja (\`${metoda.prowizja}%\`): **+${prowizja_zl.toFixed(2)} zł**\n` +
         `💵 Musisz zapłacić łącznie: **${do_zaplaty_zl.toFixed(2)} zł**`,
       flags: 64
@@ -1707,7 +1707,7 @@ client.on('interactionCreate', async interaction => {
 
   // ── KUP PELERYNKĘ ──────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'kup_pelerynke') {
-    const modal = new ModalBuilder().setCustomId('modal_kup_pelerynke').setTitle('🛍️ Zakup pelerynki — SS Shop');
+    const modal = new ModalBuilder().setCustomId('modal_kup_pelerynke').setTitle('🛍️ Zakup pelerynki — Cat Shop');
     modal.addComponents(new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('nazwa_pelerynki')
@@ -1731,7 +1731,7 @@ client.on('interactionCreate', async interaction => {
           `❌ **Nie rozpoznano nazwy pelerynki!**\n\n` +
           `Musisz wpisać **pełną nazwę** jednej z pelerynek:\n` +
           `> \`Home Cape\`, \`Copper Cape\`, \`Menace\`, \`Purple Heart\`, \`MCE Cape\`\n` +
-          `> lub \`zestaw\` jeśli chcesz kupić kilka\n\nSpróbuj ponownie! 💜`,
+          `> lub \`zestaw\` jeśli chcesz kupić kilka\n\nSpróbuj ponownie! 🐈`,
         flags: 64
       });
       return;
@@ -1743,7 +1743,7 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.reply({
       content:
-        `💜 **Krok 2 z 2 — Wybierz metodę płatności**\n\n` +
+        `🐈 **Krok 2 z 2 — Wybierz metodę płatności**\n\n` +
         `${opis}\n\n` +
         `Wybierz metodę płatności, a bot automatycznie wyliczy finalną cenę z prowizją:`,
       components: [buildMetodyTicketuRow(pelerynka.key)],
@@ -1791,7 +1791,7 @@ client.on('interactionCreate', async interaction => {
     const result = await createTicketChannel(guild, interaction.user, pelerynka.nazwaDisplay, cenaTekst, metodaKey);
 
     if (result.exists) {
-      await interaction.editReply({ content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ zakup. 💜` });
+      await interaction.editReply({ content: `❌ **Masz już otwarty ticket!**\nZajrzyj do kanału <#${result.channelId}> i tam dokończ zakup. 🐈` });
       return;
     }
 
@@ -1803,7 +1803,7 @@ client.on('interactionCreate', async interaction => {
         `${opisCena}\n` +
         `💳 Metoda płatności: **${metoda.emoji} ${metoda.nazwa}**\n\n` +
         `📩 Kanał: <#${result.channel.id}>\n` +
-        `Obsługa wkrótce się z Tobą skontaktuje 💜`
+        `Obsługa wkrótce się z Tobą skontaktuje 🐈`
     });
     return;
   }
@@ -1852,7 +1852,7 @@ client.on('interactionCreate', async interaction => {
     }).catch(() => {});
 
     await interaction.reply({
-      content: `✅ <@${interaction.user.id}> przejął ticket i zajmie się obsługą klienta! 💜`
+      content: `✅ <@${interaction.user.id}> przejął ticket i zajmie się obsługą klienta! 🐈`
     });
     return;
   }
@@ -1953,7 +1953,7 @@ client.on('interactionCreate', async interaction => {
         { name: '👤 Obsługa',            value: `<@${ticket.taken_by_user_id}>`,    inline: true  },
         { name: '📢 Kanał legit check',  value: `<#${LEGIT_CHECK_CHANNEL_ID}>`,     inline: false }
       )
-      .setFooter({ text: 'SS Shop | Legit Check' })
+      .setFooter({ text: 'Cat Shop | Legit Check' })
       .setTimestamp();
 
     const sentMessage = await interaction.channel.send({ content: `<@${ticket.user_id}>`, embeds: [legitCheckEmbed] });
@@ -2021,12 +2021,12 @@ client.on('interactionCreate', async interaction => {
     const embed = new EmbedBuilder()
       .setColor('#6a00ff')
       .setAuthor({
-        name: '💜 SS | Shop 💜 × Weryfikacja',
+        name: '🐈 Cat | Shop 🐈 × Weryfikacja',
         iconURL: 'https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png'
       })
       .setThumbnail('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png')
       .setDescription(
-        '>>> Aby uzyskać pełny dostęp do serwera **SS Shop**, musisz przejść proces weryfikacji.\n' +
+        '>>> Aby uzyskać pełny dostęp do serwera **Cat Shop**, musisz przejść proces weryfikacji.\n' +
         'Kliknij przycisk poniżej, aby połączyć swoje konto i uzyskać dostęp do kanałów!'
       )
       .setImage('https://cdn.discordapp.com/attachments/1472524342125658168/1497735741252440226/image.png');
@@ -2168,7 +2168,7 @@ if (process.argv.includes('--setup')) {
   const commands = [
     new SlashCommandBuilder()
       .setName('drop')
-      .setDescription('🎁 Wylosuj nagrodę w SSshop!')
+      .setDescription('🎁 Wylosuj nagrodę w CatShop!')
       .toJSON(),
     new SlashCommandBuilder()
       .setName('tokengive')
@@ -2298,7 +2298,7 @@ app.get('/callback', async (req, res) => {
             { name: '🆔 ID',         value: `\`${discordUserId}\``,            inline: true },
             { name: '🕐 Czas',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
           )
-          .setFooter({ text: 'SS Shop | System weryfikacji' })
+          .setFooter({ text: 'Cat Shop | System weryfikacji' })
           .setTimestamp()]
       });
     }
