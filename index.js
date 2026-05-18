@@ -36,7 +36,8 @@ const {
   PORT = 3000
 } = process.env;
 
-const LOG_CHANNEL_ID         = '1495432512506429465';
+// ─── KANAŁY LOGÓW — WSZYSTKO IDZIE TU ────────────────────────────────────────
+const LOG_CHANNEL_ID         = '1505788742445563946';
 const WELCOME_CHANNEL_ID     = '1505521873134424221';
 const KALKULATOR_CHANNEL_ID  = '1505539734007578705';
 const KALKULATOR_MSG_KEY     = 'kalkulator_message_id';
@@ -49,9 +50,9 @@ const PROPOZYCJE_MSG_KEY     = 'propozycje_message_id';
 
 const MEMBER_COUNT_CHANNEL_ID  = '1505521873134424219';
 const INVITES_CMD_CHANNEL_ID   = '1505521873621094421';
-const LEGIT_CHECK_CHANNEL_ID   = '1505532967500644412';
+const LEGIT_CHECK_CHANNEL_ID   = '1505532967500644412';  // ╵✅・ʀᴀᴅᴀʀ-ʟᴇɢɪᴛᴄʜᴇᴄᴋ — reset do 0
 const LEGIT_CHECK_COUNT_KEY    = 'legit_check_count';
-const LEGIT_CHECK2_CHANNEL_ID  = '1505521873402855452';
+const LEGIT_CHECK2_CHANNEL_ID  = '1505521873402855452';  // ╵🔎・ʟᴇɢɪᴛ-ᴄʜᴇᴄᴋ — start od 24
 const LEGIT_CHECK2_COUNT_KEY   = 'legit_check2_count';
 
 const SS_SHOP_EMOJI_URL      = 'https://i.imgur.com/Y65cjjd.png';
@@ -593,15 +594,14 @@ async function sendOrUpdatePropozycje() {
     console.error('❌ Błąd propozycji:', err.message);
   }
 }
+
 // ════════════════════════════════════════════════════════════════════════════
 // ─── TICKET SYSTEM ───────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
-// ─── STAŁE TICKET ────────────────────────────────────────────────────────────
 const TICKET_CATEGORY_ID   = '1505521873621094422';
-const TICKET_LOG_CHANNEL   = LOG_CHANNEL_ID; // używa istniejącego LOG_CHANNEL_ID
+const TICKET_LOG_CHANNEL   = LOG_CHANNEL_ID;
 
-// Pingi per kategoria
 const TICKET_PINGS = {
   premki:           ['<@965929399557976105>'],
   radar:            ['<@1215343846003576872>'],
@@ -609,15 +609,13 @@ const TICKET_PINGS = {
   skup:             ['<@&1505525726005428425>', '<@&1505525879928000582>', '<@&1505525907350229166>', '<@&1505525920922865765>', '<@&1505525934630109205>'],
 };
 
-// Kanały +rep per kategoria
 const TICKET_REP_CHANNEL = {
-  premki:          '1505521873402855452', // legit check pieniądze
-  radar:           '1505532967500644412', // legit check radar
+  premki:          '1505521873402855452',
+  radar:           '1505532967500644412',
   zakup_pieniedzy: '1505521873402855452',
   skup:            '1505521873402855452',
 };
 
-// Nazwy wyświetlane
 const TICKET_NAMES = {
   premki:          'Premki',
   radar:           'Radar',
@@ -625,7 +623,6 @@ const TICKET_NAMES = {
   skup:            'Skup',
 };
 
-// ID ról sellerów
 const SELLER_ROLE_IDS = [
   '1505525726005428425',
   '1505525879928000582',
@@ -634,11 +631,65 @@ const SELLER_ROLE_IDS = [
   '1505525934630109205',
 ];
 
-// Logo CatHub
 const CATHUB_LOGO_URL = 'https://i.imgur.com/Y65cjjd.png';
 
-// ─── HELPERS TICKET ───────────────────────────────────────────────────────────
+// ─── TICKET TRANSCRIPT ────────────────────────────────────────────────────────
+// Zbiera ostatnie 100 wiadomości z kanału ticketu i wysyła jako plik .txt do logu
+async function sendTicketTranscript(channel, guild, closedBy, ownerId, kategoria, kwotaZl, kwotaDolary, sukces) {
+  try {
+    const logChannel = guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (!logChannel) return;
 
+    const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (!messages) return;
+
+    const sorted = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const lines = sorted.map(m => {
+      const ts = new Date(m.createdTimestamp).toISOString();
+      const content = m.content || (m.embeds.length ? '[EMBED]' : '[brak treści]');
+      return `[${ts}] ${m.author.tag} (${m.author.id}): ${content}`;
+    });
+
+    const transcriptText =
+      `=== TRANSCRIPT TICKETU ===\n` +
+      `Kanał: #${channel.name} (${channel.id})\n` +
+      `Kategoria: ${TICKET_NAMES[kategoria] || kategoria}\n` +
+      `Właściciel: ${ownerId}\n` +
+      `Zamknął: ${closedBy.tag} (${closedBy.id})\n` +
+      `Transakcja pomyślna: ${sukces}\n` +
+      `Kwota kupującego: ${kwotaZl}\n` +
+      `Kwota otrzymana: ${kwotaDolary}\n` +
+      `Zamknięto: ${new Date().toISOString()}\n` +
+      `==========================\n\n` +
+      lines.join('\n');
+
+    const { AttachmentBuilder } = require('discord.js');
+    const buffer = Buffer.from(transcriptText, 'utf-8');
+    const attachment = new AttachmentBuilder(buffer, { name: `transcript-${channel.name}-${Date.now()}.txt` });
+
+    const transcriptEmbed = new EmbedBuilder()
+      .setColor(0x6a00ff)
+      .setAuthor({ name: 'CatHub × Transcript Ticketu', iconURL: CATHUB_LOGO_URL })
+      .setTitle(`📄 Transcript — ${TICKET_NAMES[kategoria] || kategoria}`)
+      .addFields(
+        { name: '📂 Kategoria',          value: TICKET_NAMES[kategoria] || kategoria, inline: true },
+        { name: '👤 Właściciel ticketu', value: `<@${ownerId}>`,                      inline: true },
+        { name: '🔒 Zamknął',            value: `<@${closedBy.id}>`,                  inline: true },
+        { name: '✅ Transakcja',         value: sukces,                                inline: true },
+        { name: '💵 Kwota kupującego',   value: kwotaZl,                              inline: true },
+        { name: '💰 Kwota otrzymana',    value: kwotaDolary,                          inline: true },
+        { name: '🕐 Zamknięto',         value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+      )
+      .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+      .setTimestamp();
+
+    await logChannel.send({ embeds: [transcriptEmbed], files: [attachment] });
+  } catch (err) {
+    console.error('❌ Błąd sendTicketTranscript:', err.message);
+  }
+}
+
+// ─── HELPERS TICKET ───────────────────────────────────────────────────────────
 function buildTicketSetupEmbed() {
   return new EmbedBuilder()
     .setColor(0x6a00ff)
@@ -703,7 +754,6 @@ async function openTicket(interaction, kategoria) {
     return interaction.editReply({ content: '❌ Nie znaleziono kategorii ticketów. Skontaktuj się z adminem.' });
   }
 
-  // Sprawdź czy user już ma otwarty ticket
   const existing = guild.channels.cache.find(
     c => c.name === `ticket-${member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}` &&
          c.parentId === TICKET_CATEGORY_ID
@@ -712,14 +762,8 @@ async function openTicket(interaction, kategoria) {
     return interaction.editReply({ content: `❌ Masz już otwarty ticket: <#${existing.id}>` });
   }
 
-  // Uprawnienia kanału
   const permissionOverwrites = [
-    // @everyone — brak dostępu
-    {
-      id: guild.id,
-      deny: [PermissionsBitField.Flags.ViewChannel],
-    },
-    // Twórca ticketu — widzi
+    { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
     {
       id: member.id,
       allow: [
@@ -728,7 +772,6 @@ async function openTicket(interaction, kategoria) {
         PermissionsBitField.Flags.ReadMessageHistory,
       ],
     },
-    // Bot — pełen dostęp
     {
       id: guild.members.me.id,
       allow: [
@@ -738,7 +781,6 @@ async function openTicket(interaction, kategoria) {
         PermissionsBitField.Flags.ReadMessageHistory,
       ],
     },
-    // Sellerzy — widzą
     ...SELLER_ROLE_IDS.map(roleId => ({
       id: roleId,
       allow: [
@@ -757,7 +799,6 @@ async function openTicket(interaction, kategoria) {
     topic: `ticket:${kategoria}:${member.id}`,
   });
 
-  // Wyślij embed + przyciski
   const embed      = buildTicketChannelEmbed(member, kategoria);
   const components = buildTicketActionComponents();
   const pings      = TICKET_PINGS[kategoria].join(' ');
@@ -768,12 +809,28 @@ async function openTicket(interaction, kategoria) {
     components,
   });
 
+  // ─── LOG: ticket otwarty ──────────────────────────────────────────────────
+  const logCh = guild.channels.cache.get(LOG_CHANNEL_ID);
+  if (logCh) {
+    await logCh.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x6a00ff)
+        .setAuthor({ name: 'CatHub × Ticket otwarty', iconURL: CATHUB_LOGO_URL })
+        .addFields(
+          { name: '📂 Kategoria',  value: TICKET_NAMES[kategoria] || kategoria, inline: true },
+          { name: '👤 Otworzył',   value: `<@${member.id}>`,                    inline: true },
+          { name: '📌 Kanał',      value: `<#${ticketChannel.id}>`,             inline: true },
+          { name: '🕐 Czas',       value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+        )
+        .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+        .setTimestamp()]
+    }).catch(() => {});
+  }
+
   await interaction.editReply({ content: `✅ Ticket został otwarty: <#${ticketChannel.id}>` });
 }
 
 // ─── OBSŁUGA INTERAKCJI TICKET ────────────────────────────────────────────────
-// Wklej tę funkcję wewnątrz client.on('interactionCreate', ...) PRZED return na końcu.
-
 async function handleTicketInteraction(interaction) {
 
   // ── OTWÓRZ TICKET ──────────────────────────────────────────────────────────
@@ -787,7 +844,6 @@ async function handleTicketInteraction(interaction) {
   if (interaction.isButton() && interaction.customId === 'ticket_claim') {
     const channel = interaction.channel;
     const topic   = channel.topic || '';
-    // topic format: ticket:kategoria:userId
     const [, kategoria, ownerId] = topic.split(':');
 
     const isSeller = SELLER_ROLE_IDS.some(rid => interaction.member.roles.cache.has(rid));
@@ -797,7 +853,6 @@ async function handleTicketInteraction(interaction) {
       return true;
     }
 
-    // Ukryj kanał dla innych sellerów (zostaw tylko claimera, ownera, admina, bota)
     const newOverwrites = [
       { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
       { id: interaction.user.id,  allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
@@ -806,14 +861,12 @@ async function handleTicketInteraction(interaction) {
     if (ownerId) {
       newOverwrites.push({ id: ownerId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] });
     }
-    // Inni sellerzy — jawnie deny
     for (const rid of SELLER_ROLE_IDS) {
       newOverwrites.push({ id: rid, deny: [PermissionsBitField.Flags.ViewChannel] });
     }
 
     await channel.permissionOverwrites.set(newOverwrites);
 
-    // Wyślij embed o przejęciu
     const claimEmbed = new EmbedBuilder()
       .setColor(0x00cc88)
       .setAuthor({ name: 'CatHub × Ticket przejęty', iconURL: CATHUB_LOGO_URL })
@@ -821,7 +874,6 @@ async function handleTicketInteraction(interaction) {
       .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
       .setTimestamp();
 
-    // Zaktualizuj przyciski — wyłącz "Przejmij", tylko "Zamknij" aktywny
     const newComponents = [new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('ticket_claim').setLabel('✋ Przejęty').setStyle(ButtonStyle.Primary).setDisabled(true),
       new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Zamknij ticket').setStyle(ButtonStyle.Danger),
@@ -829,6 +881,25 @@ async function handleTicketInteraction(interaction) {
 
     await interaction.update({ components: newComponents });
     await channel.send({ embeds: [claimEmbed] });
+
+    // ─── LOG: ticket przejęty ──────────────────────────────────────────────
+    const logCh = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
+    if (logCh) {
+      await logCh.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0x00cc88)
+          .setAuthor({ name: 'CatHub × Ticket przejęty', iconURL: CATHUB_LOGO_URL })
+          .addFields(
+            { name: '📌 Kanał',    value: `<#${channel.id}>`,              inline: true },
+            { name: '✋ Przejął',  value: `<@${interaction.user.id}>`,     inline: true },
+            { name: '👤 Owner',    value: ownerId ? `<@${ownerId}>` : '?', inline: true },
+            { name: '🕐 Czas',     value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+          )
+          .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+          .setTimestamp()]
+      }).catch(() => {});
+    }
+
     return true;
   }
 
@@ -846,7 +917,6 @@ async function handleTicketInteraction(interaction) {
       return true;
     }
 
-    // Jeśli seller/admin zamyka — pokaż modal z podsumowaniem
     if (isSeller || isAdmin) {
       const modal = new ModalBuilder()
         .setCustomId(`ticket_close_modal_${kategoria || 'unknown'}`)
@@ -886,9 +956,8 @@ async function handleTicketInteraction(interaction) {
       return true;
     }
 
-    // Owner zamknął — prosto zamknij bez modala
-    await interaction.deferReply({ flags: 64 });
-    await interaction.editReply({ content: '🔒 Ticket zostanie zamknięty za 5 sekund...' });
+    // Owner zamknął — informacja że musi czekać na admina
+    await interaction.reply({ content: '⚠️ Ticket zostanie zamknięty przez obsługę po zakończeniu transakcji.', flags: 64 });
     return true;
   }
 
@@ -907,10 +976,8 @@ async function handleTicketInteraction(interaction) {
     const repChannelId   = TICKET_REP_CHANNEL[kategoria] || TICKET_REP_CHANNEL['zakup_pieniedzy'];
     const nazwaKategorii = TICKET_NAMES[kategoria] || kategoria;
 
-    // Format +rep
     const repText = `+rep <@${seller.id}> ${nazwaKategorii} anarchia.gg ${kwotaZl} ${kwotaDolary}`;
 
-    // Embed podsumowania w tickecie
     const summaryEmbed = new EmbedBuilder()
       .setColor(sukces.toLowerCase() === 'tak' ? 0x00cc88 : 0xff4444)
       .setAuthor({ name: 'CatHub × Podsumowanie transakcji', iconURL: CATHUB_LOGO_URL })
@@ -925,7 +992,6 @@ async function handleTicketInteraction(interaction) {
       .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
       .setTimestamp();
 
-    // Wiadomość o +rep
     const repEmbed = new EmbedBuilder()
       .setColor(0x6a00ff)
       .setAuthor({ name: 'CatHub × Wystaw +rep', iconURL: CATHUB_LOGO_URL })
@@ -940,76 +1006,127 @@ async function handleTicketInteraction(interaction) {
 
     await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
 
-    // Usuń kanał po 5 sekundach
-    setTimeout(() => channel.delete().catch(() => {}), 5000);
+    // ─── WYŚLIJ TRANSCRIPT DO LOGÓW ───────────────────────────────────────
+    await sendTicketTranscript(channel, interaction.guild, seller, ownerId, kategoria, kwotaZl, kwotaDolary, sukces);
 
-// ─── AUTO +REP po 10 minutach ─────────────────────────────────────────────
-const repChannelIdFinal = TICKET_REP_CHANNEL[kategoria] || TICKET_REP_CHANNEL['zakup_pieniedzy'];
-const ownerId_final = ownerId;
-const repTextFinal = repText;
+    // ════════════════════════════════════════════════════════════════════════
+    // ─── CZEKAJ NA +REP PRZED ZAMKNIĘCIEM ───────────────────────────────────
+    // Ticket NIE zamknie się od razu. Bot sprawdza przez 15 minut czy owner
+    // napisał +rep w kanale legit-check. Dopiero wtedy usuwa kanał.
+    // ════════════════════════════════════════════════════════════════════════
+    const repChannelIdFinal  = repChannelId;
+    const ownerId_final      = ownerId;
+    const repTextFinal       = repText;
+    const guild              = interaction.guild;
+    const MAX_WAIT_MS        = 15 * 60 * 1000;   // max 15 minut czekania
+    const CHECK_INTERVAL_MS  = 20 * 1000;         // sprawdzaj co 20 sekund
+    const startWait          = Date.now();
 
-setTimeout(async () => {
-  try {
-    const repCh = await client.channels.fetch(repChannelIdFinal).catch(() => null);
-    if (!repCh) return;
+    // Informacja w kanale że czekamy na +rep
+    await channel.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0xffcc00)
+        .setAuthor({ name: 'CatHub × Oczekiwanie na +rep', iconURL: CATHUB_LOGO_URL })
+        .setDescription(
+          `⏳ Ticket zostanie **automatycznie zamknięty** gdy bot wykryje \`+rep\` na kanale <#${repChannelIdFinal}>.\n\n` +
+          `Jeśli +rep nie zostanie wystawiony w ciągu **15 minut**, ticket zamknie się automatycznie.`
+        )
+        .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+        .setTimestamp()]
+    }).catch(() => {});
 
-    // Sprawdź czy owner już napisał +rep w ostatnich 10 minutach
-    const since = Date.now() - 10 * 60 * 1000;
-    const messages = await repCh.messages.fetch({ limit: 50 }).catch(() => null);
-    if (messages) {
-      const alreadyRepped = messages.some(m =>
-        m.author.id === ownerId_final &&
-        m.content.includes('+rep') &&
-        m.createdTimestamp >= since
-      );
-      if (alreadyRepped) return; // napisał sam, nie rób nic
-    }
+    // ── AUTO +REP via webhook (po 10 minutach jeśli owner nie napisał) ─────
+    const autoRepTimer = setTimeout(async () => {
+      try {
+        const repCh = await client.channels.fetch(repChannelIdFinal).catch(() => null);
+        if (!repCh) return;
 
-    // Pobierz dane usera do webhooka
-    const ownerMember = await interaction.guild.members.fetch(ownerId_final).catch(() => null);
-    if (!ownerMember) return;
+        const since = Date.now() - 10 * 60 * 1000;
+        const msgs  = await repCh.messages.fetch({ limit: 50 }).catch(() => null);
+        if (msgs) {
+          const alreadyRepped = msgs.some(m =>
+            m.author.id === ownerId_final &&
+            m.content.includes('+rep') &&
+            m.createdTimestamp >= since
+          );
+          if (alreadyRepped) return;
+        }
 
-    const avatarURL = ownerMember.user.displayAvatarURL({ extension: 'png', size: 256, forceStatic: true });
-    const displayName = ownerMember.displayName;
+        const ownerMember = await guild.members.fetch(ownerId_final).catch(() => null);
+        if (!ownerMember) return;
 
-    // Stwórz webhook
-    const webhook = await repCh.createWebhook({
-      name: displayName,
-      avatar: avatarURL,
-      reason: 'Auto +rep za użytkownika'
-    }).catch(() => null);
-    if (!webhook) return;
+        const avatarURL   = ownerMember.user.displayAvatarURL({ extension: 'png', size: 256, forceStatic: true });
+        const displayName = ownerMember.displayName;
 
-    await webhook.send({ content: repTextFinal });
-    await webhook.delete().catch(() => {});
+        const webhook = await repCh.createWebhook({
+          name: displayName,
+          avatar: avatarURL,
+          reason: 'Auto +rep za użytkownika'
+        }).catch(() => null);
+        if (!webhook) return;
 
-  } catch (err) {
-    console.error('❌ Błąd auto +rep:', err.message);
-  }
-}, 10 * 60 * 1000); // 10 minut
+        await webhook.send({ content: repTextFinal });
+        await webhook.delete().catch(() => {});
+      } catch (err) {
+        console.error('❌ Błąd auto +rep:', err.message);
+      }
+    }, 10 * 60 * 1000);
+
+    // ── POLLING: czekaj aż owner napisze +rep, potem zamknij ticket ────────
+    const pollInterval = setInterval(async () => {
+      try {
+        const elapsed = Date.now() - startWait;
+
+        // Sprawdź czy owner napisał +rep w kanale rep
+        const repCh = await client.channels.fetch(repChannelIdFinal).catch(() => null);
+        let repFound = false;
+
+        if (repCh) {
+          const msgs = await repCh.messages.fetch({ limit: 30 }).catch(() => null);
+          if (msgs) {
+            repFound = msgs.some(m =>
+              (m.author.id === ownerId_final || m.webhookId) &&
+              m.content.toLowerCase().includes('+rep') &&
+              m.createdTimestamp >= startWait
+            );
+          }
+        }
+
+        const shouldClose = repFound || elapsed >= MAX_WAIT_MS;
+
+        if (shouldClose) {
+          clearInterval(pollInterval);
+          clearTimeout(autoRepTimer);
+
+          const reason = repFound
+            ? '✅ +rep wykryty — ticket zamknięty!'
+            : '⏰ Limit czasu minął — ticket zamknięty automatycznie.';
+
+          await channel.send({
+            embeds: [new EmbedBuilder()
+              .setColor(repFound ? 0x00cc88 : 0xff8800)
+              .setDescription(reason)
+              .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+              .setTimestamp()]
+          }).catch(() => {});
+
+          // Poczekaj chwilę żeby wiadomość była widoczna, potem usuń kanał
+          setTimeout(() => channel.delete().catch(() => {}), 4000);
+        }
+      } catch (err) {
+        console.error('❌ Błąd pollInterval ticket close:', err.message);
+        clearInterval(pollInterval);
+        clearTimeout(autoRepTimer);
+        setTimeout(() => channel.delete().catch(() => {}), 4000);
+      }
+    }, CHECK_INTERVAL_MS);
+
     return true;
   }
 
-  return false; // nie obsłużono — przekaż dalej
+  return false;
 }
 
-// ─── SETUP-TICKETS COMMAND ────────────────────────────────────────────────────
-// W client.on('interactionCreate') dodaj PRZED innymi komendami:
-//
-// if (interaction.isChatInputCommand() && interaction.commandName === 'setup-tickets') {
-//   if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-//     return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
-//   }
-//   const embed      = buildTicketSetupEmbed();
-//   const components = buildTicketSetupComponents();
-//   await interaction.channel.send({ embeds: [embed], components });
-//   await interaction.reply({ content: '✅ Panel ticketów wysłany!', flags: 64 });
-//   return;
-// }
-//
-// ORAZ na górze interactionCreate dodaj:
-// const ticketHandled = await handleTicketInteraction(interaction);
-// if (ticketHandled) return;
 // ─── BOT ──────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -1028,7 +1145,6 @@ client.once('ready', async () => {
   await sendOrUpdateMetody();
   await sendOrUpdatePropozycje();
 
-  // cache invites on startup
   try {
     const startGuild = client.guilds.cache.get(GUILD_ID);
     if (startGuild) {
@@ -1042,17 +1158,19 @@ client.once('ready', async () => {
 
   const guild = client.guilds.cache.get(GUILD_ID);
   if (guild) await updateMemberCount(guild);
+
+  // ─── RESET LEGIT CHECK COUNT DO 0 ────────────────────────────────────────
   if (guild) {
-    const raw = await getConfig(LEGIT_CHECK_COUNT_KEY);
-    const count = raw ? parseInt(raw) : 1;
-    if (!raw) await setConfig(LEGIT_CHECK_COUNT_KEY, '1');
-    await updateLegitCheckCount(guild, count);
+    await setConfig(LEGIT_CHECK_COUNT_KEY, '0');
+    await updateLegitCheckCount(guild, 0);
+    console.log('✅ Legit check radar zresetowany do 0');
   }
+
+  // ─── RESET LEGIT CHECK 2 COUNT DO 24 ─────────────────────────────────────
   if (guild) {
-    const raw2 = await getConfig(LEGIT_CHECK2_COUNT_KEY);
-    const count2 = raw2 ? parseInt(raw2) : 24;
-    if (!raw2) await setConfig(LEGIT_CHECK2_COUNT_KEY, '24');
-    await updateLegitCheck2Count(guild, count2);
+    await setConfig(LEGIT_CHECK2_COUNT_KEY, '24');
+    await updateLegitCheck2Count(guild, 24);
+    console.log('✅ Legit check 2 zresetowany do 24');
   }
 
   setInterval(async () => {
@@ -1093,7 +1211,7 @@ client.on('messageCreate', async message => {
 
   if (message.channel.id === LEGIT_CHECK_CHANNEL_ID) {
     try {
-      const raw = await getConfig(LEGIT_CHECK_COUNT_KEY);
+      const raw   = await getConfig(LEGIT_CHECK_COUNT_KEY);
       const count = (raw ? parseInt(raw) : 0) + 1;
       await setConfig(LEGIT_CHECK_COUNT_KEY, String(count));
       await updateLegitCheckCount(message.guild, count);
@@ -1104,7 +1222,7 @@ client.on('messageCreate', async message => {
 
   if (message.channel.id === LEGIT_CHECK2_CHANNEL_ID) {
     try {
-      const raw2 = await getConfig(LEGIT_CHECK2_COUNT_KEY);
+      const raw2   = await getConfig(LEGIT_CHECK2_COUNT_KEY);
       const count2 = (raw2 ? parseInt(raw2) : 24) + 1;
       await setConfig(LEGIT_CHECK2_COUNT_KEY, String(count2));
       await updateLegitCheck2Count(message.guild, count2);
@@ -1126,6 +1244,7 @@ client.on('messageCreate', async message => {
     await message.delete();
     await message.author.send('🚫 **Nie wysyłaj linków do żadnego discorda!**\nZa karę dostajesz przerwę na **7 dni**. Przemyśl sobie co zrobiłeś.').catch(() => {});
     await message.member.timeout(7 * 24 * 60 * 60 * 1000, 'Wysłanie linku do Discorda');
+
     const logChannel = message.guild.channels.cache.get(LOG_CHANNEL_ID);
     if (logChannel) {
       await logChannel.send({
@@ -1153,6 +1272,7 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
   const ticketHandled = await handleTicketInteraction(interaction);
   if (ticketHandled) return;
+
   // ── PROPOZYCJE ────────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'propozycja_wystaw') {
     const modal = new ModalBuilder().setCustomId('propozycja_modal').setTitle('💡 Dodaj propozycję');
@@ -1478,6 +1598,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: '✅ Wiadomość weryfikacyjna wysłana!', flags: 64 });
     return;
   }
+
   // ── SETUP-VERIFY-MATH ─────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'setup-verify-math') {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -1499,14 +1620,16 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: '✅ Wysłano!', flags: 64 });
     return;
   }
-if (interaction.isChatInputCommand() && interaction.commandName === 'setup-tickets') {
-  if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-    return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
+
+  if (interaction.isChatInputCommand() && interaction.commandName === 'setup-tickets') {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
+    }
+    await interaction.channel.send({ embeds: [buildTicketSetupEmbed()], components: buildTicketSetupComponents() });
+    await interaction.reply({ content: '✅ Panel ticketów wysłany!', flags: 64 });
+    return;
   }
-  await interaction.channel.send({ embeds: [buildTicketSetupEmbed()], components: buildTicketSetupComponents() });
-  await interaction.reply({ content: '✅ Panel ticketów wysłany!', flags: 64 });
-  return;
-}
+
   // ── VERIFY MATH: przycisk ─────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'verify_math') {
     const a = Math.floor(Math.random() * 20) + 1;
@@ -1656,8 +1779,7 @@ if (interaction.isChatInputCommand() && interaction.commandName === 'setup-ticke
     return;
   }
 
-
-  // ── ZAPROSZENIA MOJE ─────────────────────────────────────────────────────
+  // ── ZAPROSZENIA MOJE ──────────────────────────────────────────────────────
   if (interaction.isChatInputCommand() && interaction.commandName === 'zaproszeniamoje') {
     if (interaction.channel.id !== INVITES_CMD_CHANNEL_ID) {
       return interaction.reply({ content: `❌ Tej komendy możesz użyć tylko na <#${INVITES_CMD_CHANNEL_ID}>!`, flags: 64 });
@@ -1685,7 +1807,6 @@ client.on('guildMemberAdd', async member => {
   await updateMemberCount(member.guild);
   checkAndUpdateAutoRole(member).catch(() => {});
 
-  // Wyślij powitanie natychmiast (bez invitera)
   const welcomeChannel = await client.channels.fetch(WELCOME_CHANNEL_ID).catch(() => null);
   let welcomeMsg = null;
   if (welcomeChannel) {
@@ -1704,7 +1825,6 @@ client.on('guildMemberAdd', async member => {
     welcomeMsg = await welcomeChannel.send({ content: `<@${member.user.id}>`, embeds: [embedNatychmiast] }).catch(() => null);
   }
 
-  // Invite tracking w tle, potem edytuj wiadomość
   (async () => {
     try {
       const newInvites = await member.guild.invites.fetch();
@@ -1727,7 +1847,6 @@ client.on('guildMemberAdd', async member => {
         inviterCount = await incrementInviteCount(inviter.id);
       }
 
-      // Edytuj wiadomość z docelową treścią
       if (welcomeMsg) {
         const randomGif = getRandomGif();
         let desc =
@@ -1754,13 +1873,11 @@ client.on('guildMemberAdd', async member => {
   })();
 });
 
-// ─── NOWY MEMBER WYSZEDŁ ──────────────────────────────────────────────────────
 client.on('guildMemberRemove', async member => {
   if (member.guild.id !== GUILD_ID) return;
   await updateMemberCount(member.guild);
 });
 
-// ─── PRESENCE UPDATE ──────────────────────────────────────────────────────────
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
   try {
     if (!newPresence?.guild || newPresence.guild.id !== GUILD_ID) return;
@@ -1777,12 +1894,10 @@ client.on('presenceUpdate', async (oldPresence, newPresence) => {
   }
 });
 
-// ─── GLOBAL ERROR HANDLER ────────────────────────────────────────────────────
 process.on('unhandledRejection', err => {
   console.error('❌ Unhandled rejection:', err?.message || err);
 });
 
-// ─── LOGOWANIE ────────────────────────────────────────────────────────────────
 client.login(BOT_TOKEN);
 
 // ─── REJESTRACJA KOMEND ───────────────────────────────────────────────────────
@@ -1830,7 +1945,7 @@ if (process.argv.includes('--setup')) {
       .setName('setup-verify-math')
       .setDescription('Wysyła alternatywną weryfikację matematyczną')
       .toJSON(),
-new SlashCommandBuilder()
+    new SlashCommandBuilder()
       .setName('zaproszeniamoje')
       .setDescription('🎟️ Sprawdź ile masz zaproszeń')
       .toJSON(),
@@ -1842,7 +1957,8 @@ new SlashCommandBuilder()
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
-  }
+}
+
 // ─── SERWER HTTP ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send('Bot działa!'));
 
@@ -1937,5 +2053,5 @@ app.get('/callback', async (req, res) => {
 });
 
 app.listen(PORT, () => {
- console.log(`✅ Serwer HTTP działa na porcie ${PORT}`);
+  console.log(`✅ Serwer HTTP działa na porcie ${PORT}`);
 });
