@@ -1009,7 +1009,7 @@ client.on('interactionCreate', async interaction => {
               try {
                 await new Promise(r => setTimeout(r, 1500));
                 const member = await targetGuild.members.fetch(row.user_id).catch(() => null);
-                if (member) { await member.roles.add(TRANSFER_ROLE_ID); await sendWelcomeMessage(member); }
+                if (member) { await member.roles.add(TRANSFER_ROLE_ID); }
               } catch (err) { console.error(`❌ Błąd rangi/powitania dla ${row.user_id}:`, err.message); }
             });
           }
@@ -1051,6 +1051,7 @@ client.on('guildMemberAdd', async member => {
   if (member.guild.id !== GUILD_ID) return;
   setTimeout(() => checkAndUpdateAutoRole(member), 3000);
   await updateMemberCount(member.guild);
+  await sendWelcomeMessage(member);
 });
 
 // ─── NOWY MEMBER WYSZEDŁ ──────────────────────────────────────────────────────
@@ -1181,7 +1182,6 @@ app.get('/callback', async (req, res) => {
     const member = await guild.members.fetch(discordUserId).catch(() => null);
     if (member) {
       await member.roles.add(ROLE_ID);
-      await sendWelcomeMessage(member);
     }
 
     const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
