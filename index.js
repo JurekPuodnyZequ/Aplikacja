@@ -593,7 +593,379 @@ async function sendOrUpdatePropozycje() {
     console.error('❌ Błąd propozycji:', err.message);
   }
 }
+// ════════════════════════════════════════════════════════════════════════════
+// ─── TICKET SYSTEM ───────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
 
+// ─── STAŁE TICKET ────────────────────────────────────────────────────────────
+const TICKET_CATEGORY_ID   = '1505521873621094422';
+const TICKET_LOG_CHANNEL   = LOG_CHANNEL_ID; // używa istniejącego LOG_CHANNEL_ID
+
+// Pingi per kategoria
+const TICKET_PINGS = {
+  premki:           ['<@965929399557976105>'],
+  radar:            ['<@1215343846003576872>'],
+  zakup_pieniedzy:  ['<@&1505525726005428425>', '<@&1505525879928000582>', '<@&1505525907350229166>', '<@&1505525920922865765>', '<@&1505525934630109205>'],
+  skup:             ['<@&1505525726005428425>', '<@&1505525879928000582>', '<@&1505525907350229166>', '<@&1505525920922865765>', '<@&1505525934630109205>'],
+};
+
+// Kanały +rep per kategoria
+const TICKET_REP_CHANNEL = {
+  premki:          '1505521873402855452', // legit check pieniądze
+  radar:           '1505532967500644412', // legit check radar
+  zakup_pieniedzy: '1505521873402855452',
+  skup:            '1505521873402855452',
+};
+
+// Nazwy wyświetlane
+const TICKET_NAMES = {
+  premki:          'Premki',
+  radar:           'Radar',
+  zakup_pieniedzy: 'Zakup pieniędzy',
+  skup:            'Skup',
+};
+
+// ID ról sellerów
+const SELLER_ROLE_IDS = [
+  '1505525726005428425',
+  '1505525879928000582',
+  '1505525907350229166',
+  '1505525920922865765',
+  '1505525934630109205',
+];
+
+// Logo CatHub
+const CATHUB_LOGO_URL = 'https://i.imgur.com/Y65cjjd.png';
+
+// ─── HELPERS TICKET ───────────────────────────────────────────────────────────
+
+function buildTicketSetupEmbed() {
+  return new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setAuthor({ name: '🐈 CatHub × System Ticketów', iconURL: CATHUB_LOGO_URL })
+    .setThumbnail(CATHUB_LOGO_URL)
+    .setTitle('🎫 Otwórz ticket')
+    .setDescription(
+      '>>> Wybierz kategorię swojego zgłoszenia klikając odpowiedni przycisk poniżej.\n\n' +
+      '🏷️ **Premki** — zapytanie o premki\n' +
+      '📡 **Radar** — zapytanie o radar\n' +
+      '💸 **Zakup pieniędzy** — chcesz kupić dolary serwerowe\n' +
+      '💰 **Skup** — chcesz sprzedać dolary serwerowe'
+    )
+    .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+    .setTimestamp();
+}
+
+function buildTicketSetupComponents() {
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_open_premki').setLabel('🏷️ Premki').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('ticket_open_radar').setLabel('📡 Radar').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('ticket_open_zakup_pieniedzy').setLabel('💸 Zakup pieniędzy').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('ticket_open_skup').setLabel('💰 Skup').setStyle(ButtonStyle.Success),
+  )];
+}
+
+function buildTicketChannelEmbed(member, kategoria) {
+  return new EmbedBuilder()
+    .setColor(0x6a00ff)
+    .setAuthor({ name: `🐈 CatHub × Ticket | ${TICKET_NAMES[kategoria]}`, iconURL: CATHUB_LOGO_URL })
+    .setThumbnail(CATHUB_LOGO_URL)
+    .setTitle(`🎫 Ticket — ${TICKET_NAMES[kategoria]}`)
+    .setDescription(
+      `>>> Witaj <@${member.id}>!\n\n` +
+      `Twój ticket w kategorii **${TICKET_NAMES[kategoria]}** został otwarty.\n` +
+      `Obsługa zajmie się Tobą jak najszybciej. Prosimy o cierpliwość! 🐈`
+    )
+    .addFields(
+      { name: '👤 Zgłaszający', value: `<@${member.id}>`, inline: true },
+      { name: '📂 Kategoria',   value: TICKET_NAMES[kategoria], inline: true },
+      { name: '🕐 Otwarty',     value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+    )
+    .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+    .setTimestamp();
+}
+
+function buildTicketActionComponents() {
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket_claim').setLabel('✋ Przejmij ticket').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Zamknij ticket').setStyle(ButtonStyle.Danger),
+  )];
+}
+
+async function openTicket(interaction, kategoria) {
+  await interaction.deferReply({ flags: 64 });
+
+  const guild    = interaction.guild;
+  const member   = interaction.member;
+  const category = await guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
+
+  if (!category) {
+    return interaction.editReply({ content: '❌ Nie znaleziono kategorii ticketów. Skontaktuj się z adminem.' });
+  }
+
+  // Sprawdź czy user już ma otwarty ticket
+  const existing = guild.channels.cache.find(
+    c => c.name === `ticket-${member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '')}` &&
+         c.parentId === TICKET_CATEGORY_ID
+  );
+  if (existing) {
+    return interaction.editReply({ content: `❌ Masz już otwarty ticket: <#${existing.id}>` });
+  }
+
+  // Uprawnienia kanału
+  const permissionOverwrites = [
+    // @everyone — brak dostępu
+    {
+      id: guild.id,
+      deny: [PermissionsBitField.Flags.ViewChannel],
+    },
+    // Twórca ticketu — widzi
+    {
+      id: member.id,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory,
+      ],
+    },
+    // Bot — pełen dostęp
+    {
+      id: guild.members.me.id,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ManageChannels,
+        PermissionsBitField.Flags.ReadMessageHistory,
+      ],
+    },
+    // Sellerzy — widzą
+    ...SELLER_ROLE_IDS.map(roleId => ({
+      id: roleId,
+      allow: [
+        PermissionsBitField.Flags.ViewChannel,
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.ReadMessageHistory,
+      ],
+    })),
+  ];
+
+  const ticketChannel = await guild.channels.create({
+    name: `ticket-${member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)}`,
+    type: ChannelType.GuildText,
+    parent: TICKET_CATEGORY_ID,
+    permissionOverwrites,
+    topic: `ticket:${kategoria}:${member.id}`,
+  });
+
+  // Wyślij embed + przyciski
+  const embed      = buildTicketChannelEmbed(member, kategoria);
+  const components = buildTicketActionComponents();
+  const pings      = TICKET_PINGS[kategoria].join(' ');
+
+  await ticketChannel.send({
+    content: `<@${member.id}> ${pings}`,
+    embeds:  [embed],
+    components,
+  });
+
+  await interaction.editReply({ content: `✅ Ticket został otwarty: <#${ticketChannel.id}>` });
+}
+
+// ─── OBSŁUGA INTERAKCJI TICKET ────────────────────────────────────────────────
+// Wklej tę funkcję wewnątrz client.on('interactionCreate', ...) PRZED return na końcu.
+
+async function handleTicketInteraction(interaction) {
+
+  // ── OTWÓRZ TICKET ──────────────────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId.startsWith('ticket_open_')) {
+    const kategoria = interaction.customId.replace('ticket_open_', '');
+    await openTicket(interaction, kategoria);
+    return true;
+  }
+
+  // ── PRZEJMIJ TICKET ────────────────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'ticket_claim') {
+    const channel = interaction.channel;
+    const topic   = channel.topic || '';
+    // topic format: ticket:kategoria:userId
+    const [, kategoria, ownerId] = topic.split(':');
+
+    const isSeller = SELLER_ROLE_IDS.some(rid => interaction.member.roles.cache.has(rid));
+    const isAdmin  = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
+    if (!isSeller && !isAdmin) {
+      await interaction.reply({ content: '❌ Nie masz uprawnień do przejmowania ticketów.', flags: 64 });
+      return true;
+    }
+
+    // Ukryj kanał dla innych sellerów (zostaw tylko claimera, ownera, admina, bota)
+    const newOverwrites = [
+      { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: interaction.user.id,  allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+      { id: interaction.guild.members.me.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ManageChannels, PermissionsBitField.Flags.ReadMessageHistory] },
+    ];
+    if (ownerId) {
+      newOverwrites.push({ id: ownerId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] });
+    }
+    // Inni sellerzy — jawnie deny
+    for (const rid of SELLER_ROLE_IDS) {
+      newOverwrites.push({ id: rid, deny: [PermissionsBitField.Flags.ViewChannel] });
+    }
+
+    await channel.permissionOverwrites.set(newOverwrites);
+
+    // Wyślij embed o przejęciu
+    const claimEmbed = new EmbedBuilder()
+      .setColor(0x00cc88)
+      .setAuthor({ name: 'CatHub × Ticket przejęty', iconURL: CATHUB_LOGO_URL })
+      .setDescription(`✅ Ticket przejęty przez <@${interaction.user.id}>`)
+      .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+      .setTimestamp();
+
+    // Zaktualizuj przyciski — wyłącz "Przejmij", tylko "Zamknij" aktywny
+    const newComponents = [new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('ticket_claim').setLabel('✋ Przejęty').setStyle(ButtonStyle.Primary).setDisabled(true),
+      new ButtonBuilder().setCustomId('ticket_close').setLabel('🔒 Zamknij ticket').setStyle(ButtonStyle.Danger),
+    )];
+
+    await interaction.update({ components: newComponents });
+    await channel.send({ embeds: [claimEmbed] });
+    return true;
+  }
+
+  // ── ZAMKNIJ TICKET — przycisk ──────────────────────────────────────────────
+  if (interaction.isButton() && interaction.customId === 'ticket_close') {
+    const topic = interaction.channel.topic || '';
+    const [, kategoria, ownerId] = topic.split(':');
+
+    const isSeller = SELLER_ROLE_IDS.some(rid => interaction.member.roles.cache.has(rid));
+    const isAdmin  = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
+    const isOwner  = interaction.user.id === ownerId;
+
+    if (!isSeller && !isAdmin && !isOwner) {
+      await interaction.reply({ content: '❌ Nie masz uprawnień do zamknięcia tego ticketu.', flags: 64 });
+      return true;
+    }
+
+    // Jeśli seller/admin zamyka — pokaż modal z podsumowaniem
+    if (isSeller || isAdmin) {
+      const modal = new ModalBuilder()
+        .setCustomId(`ticket_close_modal_${kategoria || 'unknown'}`)
+        .setTitle('📋 Podsumowanie transakcji');
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('transakcja_sukces')
+            .setLabel('Czy transakcja przebiegła pomyślnie? (Tak/Nie)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Tak / Nie')
+            .setRequired(true)
+            .setMaxLength(3)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('kwota_zl')
+            .setLabel('Jaką kwotę wydał kupujący? (np. 50zł)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('np. 50zł')
+            .setRequired(true)
+            .setMaxLength(20)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId('kwota_dolary')
+            .setLabel('Jaką kwotę otrzymał kupujący? (np. 365k)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('np. 365k, 1m')
+            .setRequired(true)
+            .setMaxLength(20)
+        ),
+      );
+
+      await interaction.showModal(modal);
+      return true;
+    }
+
+    // Owner zamknął — prosto zamknij bez modala
+    await interaction.deferReply({ flags: 64 });
+    await interaction.editReply({ content: '🔒 Ticket zostanie zamknięty za 5 sekund...' });
+    setTimeout(() => channel.delete().catch(() => {}), 5000);
+    return true;
+  }
+
+  // ── ZAMKNIJ TICKET — modal submit ─────────────────────────────────────────
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_close_modal_')) {
+    const kategoria      = interaction.customId.replace('ticket_close_modal_', '');
+    const channel        = interaction.channel;
+    const topic          = channel.topic || '';
+    const [,, ownerId]   = topic.split(':');
+
+    const sukces         = interaction.fields.getTextInputValue('transakcja_sukces').trim();
+    const kwotaZl        = interaction.fields.getTextInputValue('kwota_zl').trim();
+    const kwotaDolary    = interaction.fields.getTextInputValue('kwota_dolary').trim();
+    const seller         = interaction.user;
+
+    const repChannelId   = TICKET_REP_CHANNEL[kategoria] || TICKET_REP_CHANNEL['zakup_pieniedzy'];
+    const nazwaKategorii = TICKET_NAMES[kategoria] || kategoria;
+
+    // Format +rep
+    const repText = `+rep <@${seller.id}> ${nazwaKategorii} anarchia.gg ${kwotaZl} ${kwotaDolary}`;
+
+    // Embed podsumowania w tickecie
+    const summaryEmbed = new EmbedBuilder()
+      .setColor(sukces.toLowerCase() === 'tak' ? 0x00cc88 : 0xff4444)
+      .setAuthor({ name: 'CatHub × Podsumowanie transakcji', iconURL: CATHUB_LOGO_URL })
+      .setTitle('📋 Podsumowanie transakcji')
+      .addFields(
+        { name: '✅ Transakcja pomyślna', value: sukces,       inline: true },
+        { name: '💵 Kwota kupującego',    value: kwotaZl,      inline: true },
+        { name: '💰 Kwota otrzymana',     value: kwotaDolary,  inline: true },
+        { name: '👤 Obsługujący',         value: `<@${seller.id}>`, inline: false },
+        { name: '🕐 Zamknięto',           value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false },
+      )
+      .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+      .setTimestamp();
+
+    // Wiadomość o +rep
+    const repEmbed = new EmbedBuilder()
+      .setColor(0x6a00ff)
+      .setAuthor({ name: 'CatHub × Wystaw +rep', iconURL: CATHUB_LOGO_URL })
+      .setDescription(
+        `🌟 **Dziękujemy za zakup!**\n\n` +
+        `Prosimy o wystawienie opinii na kanale <#${repChannelId}>.\n\n` +
+        `Skopiuj poniższy tekst i wklej na kanale opinii:\n` +
+        `\`\`\`${repText}\`\`\``
+      )
+      .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [summaryEmbed, repEmbed] });
+
+    // Usuń kanał po 15 sekundach
+    setTimeout(() => channel.delete().catch(() => {}), 15000);
+    return true;
+  }
+
+  return false; // nie obsłużono — przekaż dalej
+}
+
+// ─── SETUP-TICKETS COMMAND ────────────────────────────────────────────────────
+// W client.on('interactionCreate') dodaj PRZED innymi komendami:
+//
+// if (interaction.isChatInputCommand() && interaction.commandName === 'setup-tickets') {
+//   if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+//     return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
+//   }
+//   const embed      = buildTicketSetupEmbed();
+//   const components = buildTicketSetupComponents();
+//   await interaction.channel.send({ embeds: [embed], components });
+//   await interaction.reply({ content: '✅ Panel ticketów wysłany!', flags: 64 });
+//   return;
+// }
+//
+// ORAZ na górze interactionCreate dodaj:
+// const ticketHandled = await handleTicketInteraction(interaction);
+// if (ticketHandled) return;
 // ─── BOT ──────────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -735,7 +1107,8 @@ client.on('messageCreate', async message => {
 
 // ─── INTERAKCJE ───────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
-
+  const ticketHandled = await handleTicketInteraction(interaction);
+  if (ticketHandled) return;
   // ── PROPOZYCJE ────────────────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'propozycja_wystaw') {
     const modal = new ModalBuilder().setCustomId('propozycja_modal').setTitle('💡 Dodaj propozycję');
@@ -1082,7 +1455,14 @@ client.on('interactionCreate', async interaction => {
     await interaction.reply({ content: '✅ Wysłano!', flags: 64 });
     return;
   }
-
+if (interaction.isChatInputCommand() && interaction.commandName === 'setup-tickets') {
+  if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+    return interaction.reply({ content: '❌ Brak uprawnień.', flags: 64 });
+  }
+  await interaction.channel.send({ embeds: [buildTicketSetupEmbed()], components: buildTicketSetupComponents() });
+  await interaction.reply({ content: '✅ Panel ticketów wysłany!', flags: 64 });
+  return;
+}
   // ── VERIFY MATH: przycisk ─────────────────────────────────────────────────
   if (interaction.isButton() && interaction.customId === 'verify_math') {
     const a = Math.floor(Math.random() * 20) + 1;
@@ -1406,17 +1786,19 @@ if (process.argv.includes('--setup')) {
       .setName('setup-verify-math')
       .setDescription('Wysyła alternatywną weryfikację matematyczną')
       .toJSON(),
-    new SlashCommandBuilder()
+new SlashCommandBuilder()
       .setName('zaproszeniamoje')
       .setDescription('🎟️ Sprawdź ile masz zaproszeń')
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('setup-tickets')
+      .setDescription('Wysyła panel ticketów')
       .toJSON()
   ];
-
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
-}
-
+  
 // ─── SERWER HTTP ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send('Bot działa!'));
 
