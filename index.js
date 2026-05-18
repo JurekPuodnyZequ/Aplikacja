@@ -393,16 +393,16 @@ async function refreshAccessToken(userId) {
 // ─── KALKULATOR ───────────────────────────────────────────────────────────────
 const PROWIZJE = {
   blik_telefon: { nazwa: 'BLIK na numer telefonu', prowizja: 0,  emoji: '📱' },
-  blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 10, emoji: '<:blik:1498356421262053386>' },
-  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1498356295408029807>' },
-  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1498356372339818747>' },
-  usdt:         { nazwa: 'USDT',                    prowizja: 0,  emoji: '<:usdt:1498356339053822102>' },
-  usdc:         { nazwa: 'USDC',                    prowizja: 0,  emoji: '<:usdc:1498356270498054264>' },
-  eth:          { nazwa: 'ETH (Ethereum)',           prowizja: 0,  emoji: '<:eth:1498008998299959397>' },
-  paypal:       { nazwa: 'PayPal',                  prowizja: 13, emoji: '<:paypal:1498357795433746653>' },
-  psc_paragon:  { nazwa: 'PSC z paragonem',         prowizja: 13, emoji: '<:psc:1498356914013339705>' },
-  psc_bez:      { nazwa: 'PSC bez paragonu',        prowizja: 20, emoji: '<:psc:1498356914013339705>' },
-  mypsc:        { nazwa: 'MyPSC (tylko)',            prowizja: 25, emoji: '<:mypsc:1498356473153978450>' },
+  blik_kod:     { nazwa: 'Kod BLIK',               prowizja: 10, emoji: '<:blik:1505931989994176512>' },
+  btc:          { nazwa: 'BTC (Bitcoin)',           prowizja: 0,  emoji: '<:btc:1505931989994176512>' },
+  ltc:          { nazwa: 'LTC (Litecoin)',          prowizja: 0,  emoji: '<:ltc:1505931989994176512>' },
+  usdt:         { nazwa: 'USDT',                    prowizja: 0,  emoji: '<:usdt:1505931989994176512>' },
+  usdc:         { nazwa: 'USDC',                    prowizja: 0,  emoji: '<:usdc:1505931989994176512>' },
+  eth:          { nazwa: 'ETH (Ethereum)',           prowizja: 0,  emoji: '<:eth:1505931989994176512>' },
+  paypal:       { nazwa: 'PayPal',                  prowizja: 13, emoji: '<:paypal:1505931989994176512>' },
+  psc_paragon:  { nazwa: 'PSC z paragonem',         prowizja: 13, emoji: '<:psc:1505931989994176512>' },
+  psc_bez:      { nazwa: 'PSC bez paragonu',        prowizja: 20, emoji: '<:psc:1505931989994176512>' },
+  mypsc:        { nazwa: 'MyPSC (tylko)',            prowizja: 25, emoji: '<:mypsc:1505931989994176512>' },
 };
 
 function parseZloty(input) {
