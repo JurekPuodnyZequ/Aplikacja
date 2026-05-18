@@ -1742,7 +1742,7 @@ process.on('unhandledRejection', err => {
 client.login(BOT_TOKEN);
 
 // ─── REJESTRACJA KOMEND ───────────────────────────────────────────────────────
-if (process.argv.includes('--setup')) {}
+if (process.argv.includes('--setup')) {
   const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
   const commands = [
     new SlashCommandBuilder()
@@ -1798,7 +1798,7 @@ new SlashCommandBuilder()
   rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands })
     .then(() => { console.log('✅ Komendy zarejestrowane!'); process.exit(0); })
     .catch(err => { console.error('❌ Błąd rejestracji komend:', err); process.exit(1); });
-  
+  }
 // ─── SERWER HTTP ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.send('Bot działa!'));
 
