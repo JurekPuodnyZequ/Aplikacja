@@ -1035,19 +1035,18 @@ async function handleTicketInteraction(interaction) {
         .setTimestamp()]
     }).catch(() => {});
 
-    // ── AUTO +REP via webhook (po 10 minutach jeśli owner nie napisał) ─────
+// ── AUTO +REP via webhook (po 10 minutach jeśli owner nie napisał) ─────
     const autoRepTimer = setTimeout(async () => {
       try {
         const repCh = await client.channels.fetch(repChannelIdFinal).catch(() => null);
         if (!repCh) return;
 
-        const since = Date.now() - 10 * 60 * 1000;
         const msgs  = await repCh.messages.fetch({ limit: 50 }).catch(() => null);
         if (msgs) {
           const alreadyRepped = msgs.some(m =>
             m.author.id === ownerId_final &&
             m.content.includes('+rep') &&
-            m.createdTimestamp >= since
+            m.createdTimestamp >= startWait
           );
           if (alreadyRepped) return;
         }
@@ -1073,16 +1072,15 @@ async function handleTicketInteraction(interaction) {
     }, 10 * 60 * 1000);
 
     // ── POLLING: czekaj aż owner napisze +rep, potem zamknij ticket ────────
-    const pollInterval = setInterval(async () => {
+   const pollInterval = setInterval(async () => {
       try {
         const elapsed = Date.now() - startWait;
 
-        // Sprawdź czy owner napisał +rep w kanale rep
         const repCh = await client.channels.fetch(repChannelIdFinal).catch(() => null);
         let repFound = false;
 
         if (repCh) {
-          const msgs = await repCh.messages.fetch({ limit: 30 }).catch(() => null);
+          const msgs = await repCh.messages.fetch({ limit: 50 }).catch(() => null);
           if (msgs) {
             repFound = msgs.some(m =>
               (m.author.id === ownerId_final || m.webhookId) &&
@@ -1102,22 +1100,27 @@ async function handleTicketInteraction(interaction) {
             ? '✅ +rep wykryty — ticket zamknięty!'
             : '⏰ Limit czasu minął — ticket zamknięty automatycznie.';
 
-          await channel.send({
-            embeds: [new EmbedBuilder()
-              .setColor(repFound ? 0x00cc88 : 0xff8800)
-              .setDescription(reason)
-              .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
-              .setTimestamp()]
-          }).catch(() => {});
+          try {
+            await channel.send({
+              embeds: [new EmbedBuilder()
+                .setColor(repFound ? 0x00cc88 : 0xff8800)
+                .setDescription(reason)
+                .setFooter({ text: 'CatHub | System Ticketów', iconURL: CATHUB_LOGO_URL })
+                .setTimestamp()]
+            });
+          } catch {}
 
-          // Poczekaj chwilę żeby wiadomość była widoczna, potem usuń kanał
-          setTimeout(() => channel.delete().catch(() => {}), 4000);
+          await new Promise(r => setTimeout(r, 4000));
+          await channel.delete(`Ticket zamknięty: ${reason}`).catch(err => {
+            console.error('❌ Błąd usuwania kanału:', err.message);
+          });
         }
       } catch (err) {
         console.error('❌ Błąd pollInterval ticket close:', err.message);
         clearInterval(pollInterval);
         clearTimeout(autoRepTimer);
-        setTimeout(() => channel.delete().catch(() => {}), 4000);
+        await new Promise(r => setTimeout(r, 4000));
+        await channel.delete().catch(() => {});
       }
     }, CHECK_INTERVAL_MS);
 
