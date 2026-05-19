@@ -648,7 +648,7 @@ function buildTicketSetupEmbed() {
     .setDescription(
       '>>> Wybierz kategorię swojego zgłoszenia klikając odpowiedni przycisk poniżej.\n\n' +
       '🏷️ **Premki** — zakup lub pomoc z premkami\n' +
-      '📡 **Radar** — zakup lub pomoc z radarem\n' +
+      '📡 **Radar** — zakup lub pomoc z modem\n' +
       '💸 **Zakup pieniędzy** — Zakup pieniędzy\n' +
       '💰 **Skup** — Sprzedaz dolarów serwerowych'
     )
