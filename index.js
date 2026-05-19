@@ -1,5 +1,5 @@
 require('dotenv').config();
-
+let memberCountDebounceTimer = null;
 const statusLinkCache = new Map();
 const usedCodes = new Set();
 const express = require('express');
@@ -133,14 +133,23 @@ async function checkAndUpdateAutoRole(member) {
 }
 
 async function updateMemberCount(guild) {
-  try {
-    const channel = await guild.channels.fetch(MEMBER_COUNT_CHANNEL_ID).catch(() => null);
-    if (!channel) return;
-    const count = guild.memberCount;
-    await channel.setName(`╵👪・${count}`);
-  } catch (err) {
-    console.error('❌ Błąd updateMemberCount:', err.message);
+  // Anuluj poprzedni timer jeśli istnieje
+  if (memberCountDebounceTimer) {
+    clearTimeout(memberCountDebounceTimer);
   }
+  
+  // Poczekaj 5 sekund od ostatniego eventu, potem zaktualizuj raz
+  memberCountDebounceTimer = setTimeout(async () => {
+    try {
+      const channel = await guild.channels.fetch(MEMBER_COUNT_CHANNEL_ID).catch(() => null);
+      if (!channel) return;
+      const count = guild.memberCount;
+      await channel.setName(`╵👪・${count}`);
+      console.log(`✅ Licznik członków: ${count}`);
+    } catch (err) {
+      console.error('❌ Błąd updateMemberCount:', err.message);
+    }
+  }, 5000);
 }
 
 async function updateLegitCheckCount(guild, count) {
